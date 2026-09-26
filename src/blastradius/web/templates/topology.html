@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Topology{% endblock %}
+{% block content %}
+<h1>Topology</h1>
+<div class="card">
+  <form class="filters" method="get">
+    <label style="flex:1">Find a circuit, AWS resource, IP, site or name<input name="q" value="{{ q }}" placeholder="OGYX/123456//ZYO · dxcon-… · 203.0.113.10 · prod-app-a" autofocus></label>
+    <button type="submit">Search</button>
+  </form>
+  {% if q %}
+    {% if results %}
+    <table class="data" style="margin-top:10px"><tbody>
+    {% for r in results %}<tr><td class="faint nowrap small">{{ r.type_label }}</td><td><a class="mono" href="/topology/node?key={{ r.key|urlencode }}">{{ r.id }}</a> <span class="muted">{{ r.name }}</span></td>
+      <td class="small faint">{{ r.account or '' }} {{ r.region or '' }}</td>
+      <td class="right"><a class="small" href="/whatif?key={{ r.key|urlencode }}">what if it fails?</a></td></tr>{% endfor %}
+    </tbody></table>
+    {% else %}<div class="empty">No match for “{{ q }}”.</div>{% endif %}
+  {% endif %}
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Snapshot #{{ summary.id }}</h2>
+    <dl class="kv small">
+      <dt>Built</dt><dd>{{ summary.created_at|dt }} ({{ summary.created_at|rel }}) from <b>{{ summary.source }}</b></dd>
+      <dt>AWS collected</dt><dd>{{ summary.aws_collected_at|dt if summary.aws_collected_at else 'never' }}</dd>
+      <dt>Inventory</dt><dd class="mono">{{ summary.inventory_source or 'none' }} {{ summary.inventory_digest or '' }}</dd>
+      <dt>Accounts</dt><dd>{% for a in summary.accounts or [] %}<div>{{ a.name }} <span class="mono">{{ a.account_id }}</span> — {{ a.regions|join(', ') }}{% if a.errors %} <span style="color:var(--sev-2)">({{ a.errors }} errors)</span>{% endif %}</div>{% else %}—{% endfor %}</dd>
+    </dl>
+    {% if user.admin %}
+    <form method="post" action="/admin/topology/refresh" style="margin-top:12px;display:flex;gap:8px">
+      <button name="collect" value="inventory" class="secondary">Rebuild from inventory</button>
+      {% if cfg.aws.enabled %}<button name="collect" value="aws">Re-collect from AWS</button>{% endif %}
+    </form>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Contents</h2>
+    <table class="data small"><tbody>
+    {% for t, c in counts.items() %}<tr><td>{{ t|typelabel }}</td><td class="right">{{ c }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% if warnings %}
+<div class="card">
+  <h2>Coverage warnings ({{ warnings|length }})</h2>
+  <ul class="small">{% for w in warnings[:100] %}<li>{{ w }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% endblock %}

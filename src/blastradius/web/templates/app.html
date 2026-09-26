@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import notice_table, sevpill with context %}
+{% block title %}{{ app.id }}{% endblock %}
+{% block content %}
+<h1>{{ app.id }}</h1>
+<div class="meta">
+  {% if app.attrs.description %}<span>{{ app.attrs.description }}</span>{% endif %}
+  {% if app.attrs.tier %}<span>tier <b>{{ app.attrs.tier }}</b></span>{% endif %}
+  <span>owners <b>{{ (app.attrs.owners or [])|join(', ') or '—' }}</b></span>
+  <span>{{ members|length }} member resource{{ 's' if members|length != 1 }}</span>
+  <a href="/whatif?key={{ app.key|urlencode }}">what-if</a>
+</div>
+<div class="grid cols-3-1">
+  <div class="card flush"><h2>Notices affecting {{ app.id }}</h2>{{ notice_table(items) }}</div>
+  <div class="stack">
+    <div class="card">
+      <h2>Stay informed</h2>
+      {% if subs %}
+      <p class="small muted">Existing subscriptions for this app:</p>
+      <ul class="small">{% for s in subs %}<li><a href="/subscriptions#sub-{{ s.id }}">{{ s.name }}</a> — <a href="/feeds/{{ s.token }}.ics">calendar</a> · <a href="/feeds/{{ s.token }}.atom">Atom</a></li>{% endfor %}</ul>
+      {% endif %}
+      <a class="button" href="/subscriptions?app={{ app.id }}">Subscribe to {{ app.id }}</a>
+      <p class="small muted">Slack, Teams, email, webhook, SNS — or just a calendar feed of the maintenance windows that hit this app.</p>
+    </div>
+    <div class="card flush">
+      <h2>Members</h2>
+      <table class="data small"><tbody>
+      {% for m in members %}<tr><td class="faint nowrap">{{ m.type_label }}</td><td><a class="mono" href="/topology/node?key={{ m.key|urlencode }}">{{ m.id }}</a> <span class="muted">{{ m.name }}</span></td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+{% endblock %}

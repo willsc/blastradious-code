@@ -1,0 +1,106 @@
+{% macro sevpill(sev, mapped=True, big=False) -%}
+{%- if mapped -%}<span class="pill sev-{{ sev }}{{ ' big' if big }}">{{ sev|sevlabel }}</span>
+{%- else -%}<span class="pill unmapped{{ ' big' if big }}" title="No inventory/AWS resource matched this notice">Unmapped</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro phasebadge(phase) -%}<span class="badge {{ phase }}">{{ phase|phase }}</span>{%- endmacro %}
+
+{% macro appchips(apps, limit=6) -%}
+{%- for a in apps[:limit] -%}<a class="chip sev-{{ a.severity }}" href="/apps/{{ a.name }}" title="{{ a.severity|sevlabel }}">{{ a.name }}</a>{%- endfor -%}
+{%- if apps|length > limit %}<span class="faint small">+{{ apps|length - limit }}</span>{% endif -%}
+{%- endmacro %}
+
+{% macro nodelink(n) -%}
+<a href="/topology/node?key={{ n.key|urlencode }}" class="mono">{{ n.id }}</a>{% if n.name and n.name != n.id %} <span class="muted">{{ n.name }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro window(n) -%}
+{%- if n.start_at -%}
+<span class="nowrap">{{ n.start_at|dt }}</span>{% if n.end_at %} → <span class="nowrap">{{ n.end_at|dt }}</span>{% endif %}
+<div class="faint small">{{ n|duration }} · {{ n.start_at|rel }}</div>
+{%- else -%}<span class="muted">window not stated</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro prefixes(p) -%}
+{%- if p is none -%}<span class="faint small">all destinations</span>
+{%- elif p -%}<span class="prefixes">{% for k, v in p.items() %}<code title="{{ v|sevlabel }}">{{ k }}</code>{% endfor %}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro notice_table(items, show_phase=True) -%}
+{% if items %}
+<div class="table-scroll"><table class="data">
+  <thead><tr><th>Impact</th>{% if show_phase %}<th>Phase</th>{% endif %}<th>Window</th><th>Provider · ref</th><th>Notice</th><th>Applications</th></tr></thead>
+  <tbody>
+  {% for n in items %}
+  <tr class="{{ 'dim' if n.phase in ('completed', 'cancelled') }}">
+    <td>{{ sevpill(n.severity, n.mapped) }}{% if n.emergency %}<div class="small" style="color:var(--sev-3)">emergency</div>{% endif %}</td>
+    {% if show_phase %}<td>{{ phasebadge(n.phase) }}</td>{% endif %}
+    <td>{{ window(n) }}</td>
+    <td><b>{{ n.provider or '—' }}</b><div class="mono small muted" title="{{ n.maintenance_id }}">{{ (n.maintenance_id or '')[:28] }}{{ '…' if (n.maintenance_id or '')|length > 28 }}</div></td>
+    <td><a href="/notices/{{ n.id }}">{{ n.title }}</a>
+      <div class="faint small">{{ n.status }}{% if n.circuits %} · {{ n.circuits|map(attribute='id')|join(', ') }}{% endif %}</div></td>
+    <td>{{ appchips(n.apps) if n.apps else ('<span class="faint small">infrastructure only</span>'|safe if n.mapped else '<span class="faint small">—</span>'|safe) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<div class="empty">Nothing here.</div>{% endif %}
+{%- endmacro %}
+
+{% macro blast_sections(blast, groups, svg, view, base_url) -%}
+{% set nodemap = {} %}{% for x in blast.nodes %}{% set _ = nodemap.update({x.key: x}) %}{% endfor %}
+{% if blast.apps %}
+<div class="card flush">
+  <h2>Affected applications</h2>
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Application</th><th>Impact</th><th>Why</th><th>Destinations affected</th><th>Owners</th></tr></thead>
+    <tbody>
+    {% for a in blast.apps %}
+    <tr>
+      <td><a href="/apps/{{ a.name }}"><b>{{ a.name }}</b></a>{% if a.tier %}<div class="faint small">tier {{ a.tier }}</div>{% endif %}</td>
+      <td>{{ sevpill(a.severity) }}</td>
+      <td><div class="why">{{ why(blast, a) }}</div>
+        <div class="chain">{% for k in a.chain %}<span class="hop">{% if nodemap[k] %}<a href="/topology/node?key={{ k|urlencode }}">{{ nodemap[k].id if nodemap[k].type in ('app', 'circuit') else (nodemap[k].name or nodemap[k].id) }}</a>{% else %}{{ k }}{% endif %}</span> {% endfor %}</div></td>
+      <td>{{ prefixes(a.prefixes) }}</td>
+      <td class="small">{{ a.owners|join(', ') or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+{% if svg %}
+<div class="card">
+  <h2>Blast radius</h2>
+  <div class="tabs"><a href="?view=simple{{ base_url }}" class="{{ 'on' if view != 'full' }}">Simplified</a><a href="?view=full{{ base_url }}" class="{{ 'on' if view == 'full' }}">Every hop</a></div>
+  <div class="graph-scroll">{{ svg|safe }}</div>
+  <div class="legend"><span><span class="dot sev-3"></span>Outage</span><span><span class="dot sev-2"></span>Degraded / redundancy lost</span><span><span class="dot sev-1"></span>At risk</span><span><span class="dot" style="background:var(--ok)"></span>Healthy alternate path</span><span>Click a node for detail and what-if.</span></div>
+</div>
+{% endif %}
+
+{% if blast.nodes %}
+<div class="card flush">
+  <h2>Affected resources <span class="muted small">({% for t, c in blast.counts.items() %}{{ c }} {{ t|typelabel }}{{ ', ' if not loop.last }}{% endfor %})</span></h2>
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Type</th><th>Resource</th><th>Impact</th><th>Why</th><th>Scope</th><th>Account / region</th></tr></thead>
+    <tbody>
+    {% for type, nodes in groups.items() if type != 'app' %}
+      {% for x in nodes %}
+      <tr>
+        <td class="nowrap small">{{ x.type_label }}</td>
+        <td>{{ nodelink(x) }}{% if x.anchor %} <span class="badge">anchor</span>{% endif %}
+          {% if x.detail %}<div class="faint small">{% for k, v in x.detail.items() %}{{ k }}={{ v if v is string else v|join(',') if v is iterable else v }}{{ ' · ' if not loop.last }}{% endfor %}</div>{% endif %}</td>
+        <td>{{ sevpill(x.severity) }}</td>
+        <td><ul class="reasons">{% for r in x.reasons[:3] %}<li>{{ r }}</li>{% endfor %}</ul></td>
+        <td>{{ prefixes(x.prefixes) if x.prefixes or x.type in ('subnet', 'instance', 'eni') else '' }}</td>
+        <td class="small nowrap">{{ x.account_name or x.account or '' }}<div class="faint">{{ x.region or '' }}</div></td>
+      </tr>
+      {% endfor %}
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+{%- endmacro %}

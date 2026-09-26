@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Mail log{% endblock %}
+{% block content %}
+<h1>Mail log</h1>
+<div class="meta">
+  {% for s, c in stats.items() %}<a href="?status={{ s }}" class="{{ 'on' if status == s }}"><b>{{ c }}</b> {{ s }}</a>{% endfor %}
+  {% if status %}<a href="/messages">all</a>{% endif %}
+  {% if gmail_stats %}<span>Gmail: last poll {{ gmail_stats.at|rel }} ({{ gmail_stats.listed }} listed, {{ gmail_stats.new }} new)</span>{% endif %}
+</div>
+<div class="grid cols-3-1">
+  <div class="card flush">
+    <div class="table-scroll"><table class="data">
+      <thead><tr><th>Received</th><th>From</th><th>Subject</th><th>Type</th><th>Result</th></tr></thead>
+      <tbody>
+      {% for m in rows %}
+      <tr class="{{ 'dim' if m.status == 'ignored' }}">
+        <td class="small nowrap">{{ m.received_at|dt }}<div class="faint">{{ m.source }}</div></td>
+        <td class="small">{{ m.sender_name }}<div class="faint">{{ m.sender }}</div></td>
+        <td>{{ m.subject }}</td>
+        <td class="small">{{ m.message_type or '—' }}</td>
+        <td class="small">{{ m.status }}{% if m.notice_ids %}: {% for nid in m.notice_ids.split(',') %}<a href="/notices/{{ nid }}">#{{ nid }}</a> {% endfor %}{% endif %}
+          {% if m.error %}<details><summary class="faint">error</summary><pre class="mail">{{ m.error }}</pre></details>{% endif %}</td>
+      </tr>
+      {% else %}<tr><td colspan="5" class="empty">No mail ingested yet.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>Ingest a mail</h2>
+      <form method="post" action="/messages/upload" enctype="multipart/form-data">
+        <p><input type="file" name="file" accept=".eml,message/rfc822" required></p>
+        <button type="submit">Upload .eml</button>
+      </form>
+      <p class="small muted">Or <code>POST /api/ingest</code> with the raw message, drop files into the watched directory, or let the Gmail poller fetch them.</p>
+    </div>
+    <div class="card">
+      <h2>Message types</h2>
+      {% for t in types %}
+      <div class="small" style="margin-bottom:10px"><b>{{ t.name }}</b> <span class="badge">{{ t.kind }}</span>
+        <div class="muted">{{ t.description }}</div>
+        {% if t.gmail_query %}<div class="faint mono">gmail: {{ t.gmail_query }}</div>{% endif %}
+        <div class="faint">parsers: {{ t.parsers|join(' → ') }} · default impact {{ t.default_impact }}</div></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

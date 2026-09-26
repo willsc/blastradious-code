@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sevpill, phasebadge with context %}
+{% block title %}{{ node.id }}{% endblock %}
+{% block content %}
+<h1><span class="muted" style="font-weight:500">{{ node.type_label }}</span> <span class="mono">{{ node.id }}</span></h1>
+<div class="meta">
+  {% if node.name %}<span><b>{{ node.name }}</b></span>{% endif %}
+  {% if node.account %}<span>account <b>{{ node.attrs.account_name or node.account }}</b> <span class="mono">{{ node.account }}</span></span>{% endif %}
+  {% if node.region %}<span>{{ node.region }}</span>{% endif %}
+  <span>mode <b>{{ node.mode }}</b>{% if node.mode == 'quorum' %} (min {{ node.quorum }}){% endif %}</span>
+  {% if node.stub %}<span style="color:var(--sev-2)">referenced but not described by any source</span>{% endif %}
+  <a href="/map?focus={{ node.key|urlencode }}">show on map</a>
+  {% if node.apps %}<span>apps: {% for a in node.apps %}<a class="chip" href="/apps/{{ a }}">{{ a }}</a>{% endfor %}</span>{% endif %}
+</div>
+<div class="card">
+  <h2>What if this fails?</h2>
+  <form method="get" action="/whatif" style="display:flex;gap:8px;flex-wrap:wrap">
+    <input type="hidden" name="key" value="{{ node.key }}">
+    <button name="severity" value="OUTAGE" class="danger">Outage</button>
+    <button name="severity" value="DEGRADED" class="secondary">Degraded</button>
+    <button name="severity" value="AT_RISK" class="secondary">At risk</button>
+  </form>
+</div>
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Details</h2>
+    <dl class="kv small">
+      {% for k, v in node.attrs.items() if v not in (none, '', [], {}) and k not in ('routes', 'propagations', 'bgp', 'associations') %}
+      <dt>{{ k }}</dt><dd>{{ v if v is string else (v|join(', ') if v is iterable and v is not mapping else v) }}</dd>
+      {% endfor %}
+      {% if node.aliases %}<dt>matches text</dt><dd>{% for a in node.aliases %}<code>{{ a }}</code> {% endfor %}</dd>{% endif %}
+      {% if node.ips %}<dt>matches IPs</dt><dd>{% for a in node.ips %}<code>{{ a }}</code> {% endfor %}</dd>{% endif %}
+      {% for k, v in node.tags.items() %}<dt>tag {{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
+    </dl>
+    {% if node.attrs.routes %}
+    <h3>Routes</h3>
+    <table class="data small"><thead><tr><th>Destination</th><th>Target</th><th>Origin / type</th><th>State</th></tr></thead><tbody>
+      {% for r in node.attrs.routes %}<tr><td class="mono">{{ r.dest }}</td><td class="mono">{{ r.target or (r.targets|join(', ')) }}</td><td>{{ r.origin or r.type or '' }}</td><td>{{ r.state }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% endif %}
+    {% if node.attrs.bgp %}<h3>BGP peers</h3><ul class="small">{% for p in node.attrs.bgp %}<li class="mono">{{ p.customer }} ↔ {{ p.amazon }} ({{ p.status }})</li>{% endfor %}</ul>{% endif %}
+  </div>
+  <div class="stack">
+    <div class="card flush">
+      <h2>Depends on ({{ ups|length }})</h2>
+      <table class="data small"><tbody>
+      {% for e, n in ups %}<tr><td class="faint nowrap">{{ n.type_label }}</td><td><a class="mono" href="/topology/node?key={{ n.key|urlencode }}">{{ n.id }}</a> <span class="muted">{{ n.name }}</span></td><td class="faint">{{ e.kind }}{% if e.prefix %} <code>{{ e.prefix }}</code>{% endif %}{% if e.alternate %} (inferred backup){% endif %}</td></tr>
+      {% else %}<tr><td class="muted">nothing — a root (anchors here come from notices)</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+    <div class="card flush">
+      <h2>Depended on by ({{ downs|length }})</h2>
+      <table class="data small"><tbody>
+      {% for e, n in downs[:200] %}<tr><td class="faint nowrap">{{ n.type_label }}</td><td><a class="mono" href="/topology/node?key={{ n.key|urlencode }}">{{ n.id }}</a> <span class="muted">{{ n.name }}</span></td><td class="faint">{{ e.kind }}{% if e.prefix %} <code>{{ e.prefix }}</code>{% endif %}</td></tr>
+      {% else %}<tr><td class="muted">nothing</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+<div class="card flush">
+  <h2>Notices that affect this</h2>
+  {% if affecting %}
+  <table class="data"><thead><tr><th>Here</th><th>Phase</th><th>Window</th><th>Notice</th><th>Why</th></tr></thead><tbody>
+  {% for n in affecting %}<tr class="{{ 'dim' if n.phase in ('completed','cancelled') }}"><td>{{ sevpill(n.node_severity) }}{% if n.node_anchor %} <span class="badge">anchor</span>{% endif %}</td><td>{{ phasebadge(n.phase) }}</td>
+    <td class="small">{{ n.start_at|dt }}</td><td><a href="/notices/{{ n.id }}">{{ n.provider }} — {{ n.title }}</a></td><td class="small muted">{{ n.node_reason|truncate(140) }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<div class="empty">No notice has touched this resource.</div>{% endif %}
+</div>
+{% endblock %}

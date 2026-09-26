@@ -1,0 +1,11 @@
+From: GTT Change Management <change.management@gtt.net>
+To: noc@example.com
+Subject: CANCELLED: GTT Planned Maintenance Notification PM-556677
+Date: {{-1h|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <pm-556677-cancel@gtt.net>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Maintenance ID: PM-556677
+
+This maintenance has been cancelled and will not take place. We apologise for any inconvenience.

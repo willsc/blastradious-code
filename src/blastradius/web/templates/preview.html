@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Preview · {{ n.title }}{% endblock %}
+{% block content %}
+<h1>Notification preview</h1>
+<p class="muted">What subscribers receive for a <b>{{ event }}</b> event on <a href="/notices/{{ n.id }}">{{ n.title }}</a>.
+  Other events: {% for e in ['new', 'rescheduled', 'cancelled', 'reminder', 'impact_changed'] %}<a href="?event={{ e }}">{{ e }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>
+<div class="card"><h2>Subject</h2><code>{{ r.subject }}</code></div>
+<div class="grid cols-2">
+  <div class="card"><h2>Plain text / email</h2><pre class="mail">{{ r.text }}</pre></div>
+  <div class="card"><h2>HTML email</h2><div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:#fff;color:#111">{{ r.html|safe }}</div></div>
+</div>
+<div class="grid cols-2">
+  <div class="card"><h2>Slack (incoming webhook)</h2><pre class="json">{{ r.slack|pretty }}</pre></div>
+  <div class="card"><h2>Microsoft Teams (Workflows webhook)</h2><pre class="json">{{ r.teams|pretty }}</pre></div>
+</div>
+<div class="card"><h2>Generic webhook / SNS message body</h2><pre class="json">{{ r.data|pretty }}</pre></div>
+{% endblock %}

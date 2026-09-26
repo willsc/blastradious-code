@@ -1,0 +1,30 @@
+[Unit]
+Description=blastradius - maintenance notices correlated with AWS blast radius
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=blastradius
+Group=blastradius
+WorkingDirectory=/var/lib/blastradius
+EnvironmentFile=-/etc/blastradius/env
+ExecStart=/opt/blastradius/.venv/bin/blastradius -c /etc/blastradius/config.yaml run
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/blastradius
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

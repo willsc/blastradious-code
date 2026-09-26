@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sevpill with context %}
+{% block title %}Applications{% endblock %}
+{% block content %}
+<h1>Applications</h1>
+<p class="muted">Applications come from the inventory and from <code>{{ cfg.aws.app_tag_keys[:3]|join('</code>, <code>')|safe }}</code> tags on instances, ENIs, subnets and VPCs.</p>
+<div class="card flush">
+{% if apps %}
+<div class="table-scroll"><table class="data">
+  <thead><tr><th>Application</th><th>Tier</th><th>Owners</th><th>Members</th><th>Live notices</th><th>Next window</th><th></th></tr></thead>
+  <tbody>
+  {% for a in apps %}
+  <tr>
+    <td><a href="/apps/{{ a.name }}"><b>{{ a.name }}</b></a><div class="faint small">{{ a.description }}{% if a.source == 'aws-tag' %} (from tags){% endif %}</div></td>
+    <td>{{ a.tier or '—' }}</td>
+    <td class="small">{{ a.owners|join(', ') or '—' }}</td>
+    <td>{{ a.members }}</td>
+    <td>{% if a.count %}{{ sevpill(a.worst) }} <span class="small">× {{ a.count }}</span>{% else %}<span class="faint">none</span>{% endif %}</td>
+    <td class="small">{% if a.next %}<a href="/notices/{{ a.next.id }}">{{ a.next.start_at|dt }}</a><div class="faint">{{ a.next.start_at|rel }}</div>{% else %}—{% endif %}</td>
+    <td><a class="button secondary" href="/subscriptions?app={{ a.name }}">Subscribe</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<div class="empty">No applications known yet — add <code>applications:</code> to the inventory or tag resources.</div>{% endif %}
+</div>
+{% endblock %}

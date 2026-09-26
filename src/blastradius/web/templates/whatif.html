@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sevpill, blast_sections with context %}
+{% block title %}What if{% endblock %}
+{% block content %}
+<h1>What if {{ labels|join(' + ') }} {{ 'fails' if severity == 3 else ('degrades' if severity == 2 else 'is at risk') }}?</h1>
+<div class="meta">
+  <span>overall {{ sevpill(report.severity) }}</span>
+  <span>{{ report.apps|length }} application{{ 's' if report.apps|length != 1 }} affected</span>
+  <span>{% for s, label in [('OUTAGE', 'outage'), ('DEGRADED', 'degraded'), ('AT_RISK', 'at risk')] %}<a href="?{% for k in keys %}key={{ k|urlencode }}&amp;{% endfor %}severity={{ s }}">{{ label }}</a>{{ ' · ' if not loop.last }}{% endfor %}</span>
+</div>
+{% if not report.nodes|rejectattr('anchor')|list %}
+<div class="banner info">Nothing downstream is affected{% if severity == 3 %} — this has full redundancy or nothing depends on it{% endif %}.</div>
+{% endif %}
+{% set ns = namespace(qs='') %}{% for k in keys %}{% set ns.qs = ns.qs ~ '&key=' ~ (k|urlencode) %}{% endfor %}
+{{ blast_sections(report, groups, svg, view, '&severity=' ~ (severity|sev) ~ ns.qs) }}
+{% endblock %}

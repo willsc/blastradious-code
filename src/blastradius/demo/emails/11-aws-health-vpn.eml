@@ -1,0 +1,19 @@
+From: Amazon Web Services <no-reply-aws@amazon.com>
+To: noc@example.com
+Subject: [Action may be required] AWS Site-to-Site VPN redundancy lost [AWS Account: 111111111111]
+Date: {{-30m|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <aws-health-vpn-1@amazon.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Hello,
+
+One of the two tunnels of your AWS Site-to-Site VPN connection is down. Your connection has lost redundancy.
+
+Event type code: AWS_VPN_REDUNDANCY_LOSS
+Event type category: issue
+Region: eu-west-2
+Start time: {{-30m|%a, %d %b %Y %H:%M:%S GMT}}
+
+Affected resources:
+vpn-01000000000000001 (tunnel outside IP 198.51.100.22)

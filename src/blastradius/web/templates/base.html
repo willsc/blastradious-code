@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Dashboard{% endblock %} · blastradius</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script>try{var t=localStorage.getItem("br-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+{% block head %}{% endblock %}
+</head>
+<body {% block bodyattrs %}{% endblock %}>
+{% set path = request.url.path %}
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="20" height="20"> blastradius</a>
+    <nav>
+      <a href="/" class="{{ 'on' if path == '/' }}">Dashboard</a>
+      <a href="/notices" class="{{ 'on' if path.startswith('/notices') }}">Notices</a>
+      <a href="/map" class="{{ 'on' if path.startswith('/map') }}">Map</a>
+      <a href="/apps" class="{{ 'on' if path.startswith('/apps') }}">Applications</a>
+      <a href="/collisions" class="{{ 'on' if path.startswith('/collisions') }}">Collisions</a>
+      <a href="/topology" class="{{ 'on' if path.startswith('/topology') or path.startswith('/whatif') }}">Topology</a>
+      <a href="/subscriptions" class="{{ 'on' if path.startswith('/subscriptions') }}">Subscribe</a>
+      {% if user.admin %}<a href="/messages" class="{{ 'on' if path.startswith('/messages') }}">Mail log</a>{% endif %}
+    </nav>
+    <button class="theme-toggle" data-theme-toggle type="button" title="Toggle light/dark">◐</button>
+    <span class="who">{{ user.name }}{% if user.admin %} · admin{% endif %}</span>
+  </div>
+</header>
+<main class="wrap {% block mainclass %}{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+<footer class="wrap foot">
+  blastradius {{ version }} ·
+  topology snapshot #{{ topo_summary.id or '—' }}{% if topo_summary.created_at %} built {{ topo_summary.created_at|rel }}{% endif %}
+  ({{ topo_summary.source or 'none' }}) · times shown in {{ cfg.display_timezone }} ·
+  <a href="/api/docs">API</a> · <a href="/metrics">metrics</a>
+</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+# Inventory: the facts AWS cannot tell us. blastradius merges this with the AWS collection.
+# Anything referenced by id can be an AWS id (dxcon-..., cgw-..., vpc-...) or "type:id"
+# (circuit:X, site:X, app:X). The file is watched: edits apply within a minute, without AWS calls.
+
+# Friendly account names for the UI and filters.
+accounts:
+  "111111111111": network
+  "222222222222": prod
+
+# On-prem sites and colocation facilities.
+sites:
+  - id: ld5
+    name: Equinix LD5
+    role: colo                        # colo | onprem (colos are ignored when inferring backup paths)
+    aliases: ["Equinix LD5"]          # text that identifies the site in a notice (facility-wide work)
+    dx_locations: [EqLD5]             # AWS Direct Connect location codes inside this facility
+  - id: slough-dc
+    name: Slough data centre
+    aliases: ["Slough DC"]
+    prefixes: [10.100.0.0/16]         # what lives here: lets blastradius recognise backup paths, e.g. a
+                                      # VPN into the same TGW route table that can carry these prefixes
+                                      # when the Direct Connect path is down
+  - id: london-hq
+    name: London HQ
+    aliases: ["London HQ"]
+    prefixes: [10.200.0.0/16]
+
+# Carrier circuits. A notice is correlated when it mentions the id or any alias, in any
+# separator style: "OGYX/123456//ZYO" == "OGYX 123456 ZYO" == "ogyx123456zyo".
+circuits:
+  - id: OGYX/123456//ZYO
+    provider: Zayo
+    aliases: ["ZYO-123456"]
+    description: 10G wave LD5 <-> Slough DC
+    bandwidth: 10G
+    sites: [ld5, slough-dc]           # facility work at either end reaches this circuit
+    carries: [dxcon-fgzy1a01]         # what rides on it. Alternatively tag the DX connection
+                                      # CircuitId=OGYX/123456//ZYO and omit this line.
+  - id: BT-IL-778899
+    provider: BT
+    description: Internet leased line under the London HQ VPN
+    sites: [london-hq]
+    carries: [cgw-0a1b2c3d4e5f60718]  # the customer gateway (VPN endpoint) on this line
+    ip_blocks: [203.0.113.8/29]       # notices quoting these addresses correlate too
+
+# Applications: how to recognise their resources. Resources tagged Application=<name>
+# (see aws.app_tag_keys) are picked up automatically; selectors add or override.
+applications:
+  - name: payments-api
+    description: Card payments API
+    owners: [payments-oncall@example.com]
+    tier: 1
+    selectors:
+      tags: {Application: payments-api}
+      resources: [eni-0a1b2c3d4e5f60718]   # e.g. its load balancer's interfaces
+      subnets: []
+      vpcs: []
+      cidrs: [10.20.1.0/24]                # ENIs / instances with an address in here, and whole subnets inside it
+      name_regex: '^payments-'             # EC2 Name tags
+    depends_on: []                         # manual dependencies, e.g. [circuit:BT-IL-778899]
+    notify:                                # owners get their own subscription automatically
+      - {type: slack, url: "https://hooks.slack.com/services/XXX"}
+
+# Dependencies AWS cannot see (on-prem hops, third-party services...): from -> to.
+dependencies:
+  - {from: "circuit:BT-IL-778899", to: "app:hq-voice"}
+
+# Override how a node combines its dependencies:
+#   all = any dependency failing fails it; any = redundant (fails only when all fail);
+#   quorum = fails when fewer than `quorum` dependencies are up.
+modes:
+  - {node: "vgw-0a1b2c3d4e5f60718", mode: any}

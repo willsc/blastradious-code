@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sevpill, phasebadge, appchips, notice_table with context %}
+{% block title %}Dashboard{% endblock %}
+{% block bodyattrs %}data-autorefresh="1"{% endblock %}
+{% block content %}
+<div class="kpis">
+  <div class="kpi {{ 'alert' if counts.in_progress }}"><div class="v">{{ counts.in_progress }}</div><div class="l">in progress now</div></div>
+  <div class="kpi"><div class="v">{{ counts.upcoming7 }}</div><div class="l">starting in the next 7 days</div></div>
+  <div class="kpi {{ 'alert' if counts.outage }}"><div class="v">{{ counts.outage }}</div><div class="l">live notices at outage level</div></div>
+  <div class="kpi {{ 'alert' if collisions }}"><div class="v">{{ collisions|length }}</div><div class="l">maintenance collisions</div></div>
+  <div class="kpi"><div class="v">{{ counts.unmapped }}</div><div class="l">unmapped notices</div></div>
+  <div class="kpi"><div class="v">{{ (topo_summary.counts or {}).values()|sum }}</div><div class="l">topology nodes · {{ topo_summary.created_at|rel or 'never built' }}</div></div>
+</div>
+
+{% for c in collisions %}
+<div class="banner">
+  <strong>Maintenance collision:</strong> {{ c.summary }}.
+  Overlap <span class="nowrap">{{ c.start|dt }}</span> → <span class="nowrap">{{ c.end|dt }}</span>
+  ({% for n in c.notices %}<a href="/notices/{{ n.id }}">#{{ n.id }} {{ n.provider }}</a>{{ ', ' if not loop.last }}{% endfor %}).
+  <a href="/collisions#{{ c.id }}">Details</a>
+</div>
+{% endfor %}
+
+<div class="card">
+  <h2>Next 14 days</h2>
+  {% if timeline_svg %}{{ timeline_svg|safe }}
+  <div class="legend"><span><span class="dot sev-3"></span>Outage</span><span><span class="dot sev-2"></span>Degraded</span><span><span class="dot sev-1"></span>At risk</span><span><span class="dot"></span>Unmapped</span><span style="color:var(--sev-3)">▨ collision window</span></div>
+  {% else %}<div class="empty">No scheduled maintenance in the next two weeks.</div>{% endif %}
+</div>
+
+<div class="grid cols-3-1">
+  <div class="card flush">
+    <h2>Live notices</h2>
+    {{ notice_table(live) }}
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>Applications at risk</h2>
+      {% if app_risk %}
+      <table class="data"><tbody>
+      {% for a in app_risk %}
+        <tr><td><span class="dot sev-{{ a.severity }}"></span><a href="/apps/{{ a.name }}"><b>{{ a.name }}</b></a>
+          {% if a.next %}<div class="faint small">{% if a.next.phase == 'in_progress' %}in maintenance since {{ a.next.start_at|dt }}{% else %}next: {{ a.next.start_at|dt }} ({{ a.next.start_at|rel }}){% endif %}</div>{% endif %}</td>
+          <td class="right">{{ sevpill(a.severity) }}<div class="faint small">{{ a.count }} notice{{ 's' if a.count != 1 }}</div></td></tr>
+      {% endfor %}
+      </tbody></table>
+      {% else %}<div class="empty">No application is affected by live notices.</div>{% endif %}
+    </div>
+    <div class="card">
+      <h2>Recent activity</h2>
+      <ul class="event-list">
+      {% for e in recent_events %}
+        <li><span class="badge">{{ e.kind }}</span> <a href="/notices/{{ e.notice_id }}">{{ e.provider }} — {{ e.title|truncate(48) }}</a>
+          <div class="faint small">{{ e.at|rel }}</div></li>
+      {% else %}<li class="muted">No notices yet.</li>{% endfor %}
+      </ul>
+    </div>
+    <div class="card small">
+      <h2>Daemon</h2>
+      <dl class="kv">
+        <dt>Worker</dt><dd>{% if heartbeat %}heartbeat {{ heartbeat|rel }}{% else %}<span class="muted">not running (web only)</span>{% endif %}</dd>
+        <dt>Gmail</dt><dd>{% if gmail_stats %}last poll {{ gmail_stats.at|rel }} · {{ gmail_stats.new }} new{% else %}<span class="muted">{{ 'enabled, not polled yet' if cfg.gmail.enabled else 'disabled' }}</span>{% endif %}</dd>
+        <dt>AWS</dt><dd>{{ 'collected ' ~ (topo_summary.aws_collected_at|rel) if topo_summary.aws_collected_at else 'not collected' }}{% if not cfg.aws.enabled %} <span class="faint">(collection disabled)</span>{% endif %}</dd>
+      </dl>
+      {% for e in worker_errors %}
+      <div class="banner warn small"><strong>{{ e.task }} failing</strong> since {{ e.at|rel }}: {{ e.error }}</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

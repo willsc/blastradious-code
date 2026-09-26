@@ -1,0 +1,25 @@
+From: BT Business Service Notifications <service.notifications@bt.com>
+To: noc@example.com
+Subject: Planned Engineering Works - Ref PEW-7788123
+Date: {{-1d|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <pew-7788123@bt.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Dear Customer,
+
+BT will be carrying out planned engineering works which will affect the service listed below.
+
+Ref: PEW-7788123
+Circuit: BT-IL-778899
+Service: BTnet 1Gbps Internet Leased Line
+Site: London HQ, 1 Example Street, London EC1A 1AA
+IP Block: 203.0.113.8/29
+
+Date: {{+7d|%A %d %B %Y}}
+Time: 22:00 - 02:00 BST
+
+Impact: Total loss of service expected for up to 4 hours while the access fibre is re-spliced.
+
+Regards,
+BT Service Management

@@ -1,0 +1,15 @@
+From: GTT Change Management <change.management@gtt.net>
+To: noc@example.com
+Subject: GTT Planned Maintenance Notification PM-556677
+Date: {{-6h|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <pm-556677@gtt.net>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+GTT Planned Maintenance
+
+Maintenance ID: PM-556677
+Affected Circuit: GTT-99887766
+Start Time (UTC): {{+9d@02:00|%Y-%m-%d %H:%M}}
+End Time (UTC): {{+9d@04:00|%Y-%m-%d %H:%M}}
+Impact: Switch hit of less than 50ms

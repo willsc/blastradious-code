@@ -1,0 +1,51 @@
+# blastradius behind oauth2-proxy (Google sign-in). Only the proxy is published; blastradius trusts
+# the X-Forwarded-Email header it sets, so it must not be reachable any other way.
+#
+#   1. cp config.example.yaml config.yaml && cp inventory.example.yaml inventory.yaml   (edit both)
+#      In config.yaml set: database: /data/blastradius.db, web.auth.mode: header,
+#      gmail.token_file: /data/gmail-token.json, base_url: https://your-host
+#   2. Put the Gmail OAuth client JSON next to them as gmail-client.json and run the consent flow once:
+#        docker compose run --rm -p 8765:8765 blastradius -c /etc/blastradius/config.yaml gmail-auth
+#   3. docker compose up -d        -> https://your-host (via the proxy on :4180)
+#
+# Try it first without Gmail/AWS:  docker compose run --rm -p 8470:8470 blastradius demo --host 0.0.0.0
+
+services:
+  blastradius:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./config.yaml:/etc/blastradius/config.yaml:ro
+      - ./inventory.yaml:/etc/blastradius/inventory.yaml:ro
+      - ./gmail-client.json:/etc/blastradius/gmail-client.json:ro
+      - blastradius-data:/data
+      # AWS credentials: prefer an instance/task role; or mount a profile read-only:
+      # - ~/.aws:/data/.aws:ro
+    environment:
+      BLASTRADIUS_SECRET_KEY: ${BLASTRADIUS_SECRET_KEY:?set a random secret}
+      SLACK_NOC_WEBHOOK: ${SLACK_NOC_WEBHOOK:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    expose: ["8470"]
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    restart: unless-stopped
+    depends_on: [blastradius]
+    ports: ["4180:4180"]
+    command:
+      - --http-address=0.0.0.0:4180
+      - --provider=google
+      - --email-domain=${ALLOWED_EMAIL_DOMAIN:?e.g. example.com}
+      - --upstream=http://blastradius:8470/
+      - --pass-user-headers=true
+      - --skip-auth-route=^/feeds/        # calendar/RSS clients cannot do SSO; feed URLs carry a secret token
+      - --skip-auth-route=^/healthz$
+      - --cookie-secure=true
+      - --redirect-url=${OAUTH_REDIRECT_URL:?https://your-host/oauth2/callback}
+    environment:
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH_CLIENT_ID:?}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:?}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH_COOKIE_SECRET:?32-byte base64}
+
+volumes:
+  blastradius-data:

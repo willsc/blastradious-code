@@ -1,0 +1,20 @@
+From: Lumen Maintenance <smc@lumen.com>
+To: noc@example.com
+Subject: Lumen Scheduled Maintenance #22415566
+Date: {{-3h|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <22415566@lumen.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Lumen Scheduled Maintenance Notification
+
+Maintenance Ticket #: 22415566
+Circuit ID: LUMEN/441122
+Location: Equinix LD5, Slough
+
+Start: {{+2d@23:00|%Y-%m-%d %H:%M}} GMT
+End: {{+3d@03:00|%Y-%m-%d %H:%M}} GMT
+
+Expected Impact: Up to 30 minutes of downtime within the maintenance window.
+
+Work description: optical amplifier replacement.

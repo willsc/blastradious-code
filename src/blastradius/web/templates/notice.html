@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sevpill, phasebadge, appchips, blast_sections, window with context %}
+{% block title %}{{ n.provider }} {{ n.maintenance_id or '' }}{% endblock %}
+{% block content %}
+<div class="notice-head">
+  <div>{{ sevpill(n.severity, n.mapped, big=True) }}</div>
+  <div style="flex:1;min-width:0">
+    <h1>{{ n.title }}</h1>
+    <div class="meta">
+      <span>{{ phasebadge(n.phase) }}</span>
+      <span><b>{{ n.provider or 'Unknown provider' }}</b>{% if n.maintenance_id %} · <span class="mono" title="{{ n.maintenance_id }}">{{ n.maintenance_id|truncate(60) }}</span>{% endif %}</span>
+      <span>status <b>{{ n.status }}</b></span>
+      <span>provider says <b>{{ n.impact or 'not stated' }}</b></span>
+      <span>{{ n.kind }} · {{ n.message_type }}</span>
+      {% if n.emergency %}<span style="color:var(--sev-3)"><b>emergency</b></span>{% endif %}
+    </div>
+  </div>
+  <div class="nowrap">
+    <a class="button secondary" href="/map?notice={{ n.id }}">Show on map</a>
+    <a class="button secondary" href="/notices/{{ n.id }}/preview">Preview notification</a>
+    <a class="button secondary" href="/api/notices/{{ n.id }}">JSON</a>
+  </div>
+</div>
+
+{% for c in collisions %}
+<div class="banner"><strong>Collision:</strong> {{ c.summary }} — overlap {{ c.start|dt }} → {{ c.end|dt }} with
+  {% for o in c.notices if o.id != n.id %}<a href="/notices/{{ o.id }}">#{{ o.id }} {{ o.provider }}: {{ o.title|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}.
+  <a href="/collisions#{{ c.id }}">Escalations</a></div>
+{% endfor %}
+{% if n.status == 'CANCELLED' %}<div class="banner info">This maintenance was <b>cancelled</b>; the blast radius below is what it would have affected.</div>{% endif %}
+{% if not n.mapped %}
+<div class="banner warn"><strong>Not correlated.</strong> Nothing in this notice matched a known circuit, site, IP or AWS resource.
+  {% if blast.unmapped %}Identifiers found but not in the inventory: {% for u in blast.unmapped %}<code>{{ u }}</code>{{ ', ' if not loop.last }}{% endfor %} —
+  add them to <code>inventory.yaml</code> (circuit id or alias) or tag the DX connection / customer gateway with <code>CircuitId</code>.{% endif %}</div>
+{% elif blast.unmapped %}
+<div class="banner warn"><strong>Partially mapped:</strong> {% for u in blast.unmapped %}<code>{{ u }}</code>{{ ', ' if not loop.last }}{% endfor %} {{ 'is' if blast.unmapped|length == 1 else 'are' }} not in the inventory.</div>
+{% endif %}
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Window</h2>
+    {{ window(n) }}
+    {% if n.windows|length > 1 %}
+      <h3>All windows in the notice</h3>
+      <ul class="small">{% for w in n.windows %}<li>{{ w.start|dt }} → {{ w.end|dt if w.end else 'open' }}{% if w.backup %} <span class="badge">backup</span>{% endif %}</li>{% endfor %}</ul>
+    {% endif %}
+    <div class="small muted" style="margin-top:8px">{{ fmt_window(n.start_at, n.end_at) }}</div>
+  </div>
+  <div class="card">
+    <h2>Correlation</h2>
+    <dl class="kv small">
+      <dt>Circuits in notice</dt><dd>{% for c in n.circuits %}<code>{{ c.id }}</code>{% if c.impact %} ({{ c.impact }}){% endif %}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</dd>
+      <dt>Anchored on</dt><dd>{% for a in blast.anchors %}<a href="/topology/node?key={{ a.key|urlencode }}">{{ a.label }}</a> {{ sevpill(a.severity) }}<div class="faint">{{ a.reason }}</div>{% else %}—{% endfor %}</dd>
+      {% if blast.dropped %}<dt>Context only</dt><dd>{% for d in blast.dropped %}<span class="mono">{{ d.key }}</span> <span class="faint">({{ d.reason }})</span>{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+      <dt>Parsed by</dt><dd>{{ n.parser }} · confidence {{ n.confidence }}{% if n.sequence is not none %} · sequence {{ n.sequence }}{% endif %}</dd>
+      {% if n.identifiers.notes %}<dt>Notes</dt><dd>{{ n.identifiers.notes|join('; ') }}</dd>{% endif %}
+      <dt>Correlated</dt><dd>{{ n.correlated_at|rel }} against snapshot #{{ n.snapshot_id }}</dd>
+    </dl>
+  </div>
+</div>
+
+{{ blast_sections(blast, groups, svg, view, '') }}
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>History</h2>
+    <ul class="event-list">
+    {% for e in events %}
+      <li><span class="badge">{{ e.kind }}</span> <span class="faint small">{{ e.at|dt }}</span>
+        {% if e.detail.changes %}<div class="small">{% for k, v in e.detail.changes.items() %}<div><b>{{ k }}</b>: <span class="muted">{{ v['from'] or '—' }}</span> → {{ v['to'] or '—' }}</div>{% endfor %}</div>{% endif %}
+        {% if e.kind == 'impact_changed' %}<div class="small muted">severity {{ e.detail.old_severity|sev }} → {{ e.detail.new_severity|sev }}{% if e.detail.added_apps %}; newly affected: {{ e.detail.added_apps|join(', ') }}{% endif %}</div>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+    {% if deliveries %}
+    <h3>Notifications sent</h3>
+    <table class="data small"><tbody>
+    {% for d in deliveries %}<tr><td>{{ d.event }}</td><td>{{ d.sub_name }}</td><td class="mono">{{ d.target }}</td><td>{{ d.status }}{% if d.error %} <span class="faint" title="{{ d.error }}">({{ d.error|truncate(40) }})</span>{% endif %}</td><td class="faint">{{ d.updated_at|rel }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Emails ({{ messages|length }})</h2>
+    {% for m in messages %}
+    <details class="mail" {{ 'open' if loop.last }}>
+      <summary><span class="badge">{{ m.role }}</span> <b>{{ m.subject }}</b>
+        <div class="faint small">{{ m.sender_name }} &lt;{{ m.sender }}&gt;{% if m.original_sender %} (forwarded from {{ m.original_sender }}){% endif %} · {{ m.received_at|dt }} · via {{ m.source }}</div></summary>
+      <pre class="mail">{{ m.body_text or '(no text body)' }}</pre>
+      {% if m.calendar_text %}<details><summary class="small muted">iCalendar attachment</summary><pre class="mail">{{ m.calendar_text }}</pre></details>{% endif %}
+    </details>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

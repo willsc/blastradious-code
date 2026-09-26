@@ -1,0 +1,165 @@
+# blastradius configuration. Every key is optional; values shown are defaults unless marked "example".
+# ${VAR} and ${VAR:-default} are replaced from the environment (keep secrets out of this file).
+# Relative paths are resolved against the directory containing this file.
+
+database: /var/lib/blastradius/blastradius.db
+base_url: https://blastradius.example.com        # example: used for links in notifications and feeds
+display_timezone: Europe/London                  # UI + notification local time (UTC is always shown too)
+secret_key: ${BLASTRADIUS_SECRET_KEY:-}          # signs webhooks / derives feed tokens; generated if empty
+inventory: inventory.yaml                        # circuits, sites, applications (see inventory.example.yaml)
+
+web:
+  host: 127.0.0.1                                # keep on localhost when auth.mode is "header"
+  port: 8470
+  auth:
+    mode: header                                 # none (single user / dev) | header (behind an SSO proxy)
+    header: X-Forwarded-Email                    # oauth2-proxy; Google IAP uses X-Goog-Authenticated-User-Email
+    admins: [noc-lead@example.com]               # may upload mail, rebuild topology, see the mail log
+    api_tokens:                                  # Authorization: Bearer <token>  (admin rights)
+      automation: ${BLASTRADIUS_API_TOKEN:-}
+
+# --------------------------------------------------------------------------------------------
+# Mail sources
+# --------------------------------------------------------------------------------------------
+gmail:
+  enabled: true
+  # oauth: personal Gmail or Workspace. Create an OAuth client of type "Desktop app" in Google
+  #   Cloud, enable the Gmail API, then run `blastradius -c config.yaml gmail-auth`.
+  # service_account: Workspace only; the key needs domain-wide delegation for the scope below
+  #   and `delegated_user` is the mailbox to read (e.g. a shared noc@ mailbox).
+  auth: oauth
+  client_secrets: /etc/blastradius/gmail-client.json
+  token_file: /var/lib/blastradius/gmail-token.json
+  # service_account_file: /etc/blastradius/sa.json
+  # delegated_user: noc@example.com
+  user_id: me
+  poll_interval: 60s
+  backfill_days: 14                              # first run looks this far back
+  overlap_hours: 48                              # each poll re-lists this much history (deduplicated)
+  max_messages_per_poll: 200
+  label_processed: blastradius/processed         # optional: label processed mail (needs gmail.modify scope)
+
+directory:                                       # drop *.eml files here (procmail, SES->S3 sync, replays)
+  enabled: false
+  path: /var/lib/blastradius/inbox
+  poll_interval: 10s
+
+# --------------------------------------------------------------------------------------------
+# Message types: which mail is fetched, how it is recognised and parsed. Order matters: the first
+# type whose `match` rules pass wins. If this list is omitted, built-in defaults for AWS Health,
+# carrier maintenance and carrier outages are used.
+# --------------------------------------------------------------------------------------------
+message_types:
+  - name: aws-health
+    description: AWS Health scheduled changes (Direct Connect, VPN, EC2 retirement...)
+    kind: maintenance                            # maintenance | outage | advisory
+    gmail_query: 'from:(aws.com OR amazon.com)'
+    match:
+      senders: ["@aws.com", "@amazon.com"]       # substring, or "re:<regex>"
+      body: '(?i)AWS Health|event type code|arn:aws:health|AWS_[A-Z]+_[A-Z_]+'
+    parsers: [aws_health, generic]
+    default_impact: OUTAGE                       # used when a notice does not state its impact
+
+  - name: carrier-maintenance
+    description: Planned work from carriers and colos
+    kind: maintenance
+    # Tip: create a Gmail filter that labels carrier mail, then query the label: 'label:carriers'
+    gmail_query: 'from:(zayo.com OR colt.net OR lumen.com OR bt.com OR equinix.com OR gtt.net) -in:chats'
+    match:
+      subject: '(?i)maint|planned (work|engineering|outage|event)|scheduled (work|outage)|reschedul|cancel'
+      not_subject: '(?i)newsletter|webinar|invoice|survey'
+    parsers: [bcop, ntc, generic]                # ntc = optional circuit-maintenance-parser (pip install .[ntc])
+    default_impact: OUTAGE
+
+  - name: carrier-outage
+    description: Unplanned incidents
+    kind: outage                                 # open-ended until a resolved/restored mail arrives
+    gmail_query: 'from:(zayo.com OR colt.net OR lumen.com OR bt.com) subject:(outage OR incident OR fault)'
+    match:
+      subject: '(?i)outage|incident|fault|disruption|restored|resolved'
+      not_subject: '(?i)planned|maintenance'
+    parsers: [generic]
+    default_impact: OUTAGE
+
+# Carrier-specific hints for the free-text parser (optional).
+providers:
+  - name: Colt
+    senders: ["@colt.net"]
+    dayfirst: true                               # 03/10/2026 = 3 October
+    timezone: UTC                                # when a time has no zone
+  - name: Zayo
+    senders: ["@zayo.com"]
+    circuit_patterns: ['\b[A-Z0-9]{4}/\d{6}//ZYO\b']
+    maintenance_id_patterns: ['\bTTN-\d{10}\b']
+
+# --------------------------------------------------------------------------------------------
+# AWS topology (read-only). See deploy/iam-policy.json for the exact permissions.
+# --------------------------------------------------------------------------------------------
+aws:
+  enabled: true
+  regions: [eu-west-1, eu-west-2]
+  refresh_interval: 6h
+  accounts:
+    - name: network                              # holds DX connections, DX gateway, TGW
+      role_arn: arn:aws:iam::111111111111:role/BlastRadiusReadOnly
+      external_id: ${BLASTRADIUS_EXTERNAL_ID:-}
+    - name: prod
+      role_arn: arn:aws:iam::222222222222:role/BlastRadiusReadOnly
+    # - name: default                            # the ambient credentials (instance role, env, profile)
+    # - name: sandbox
+    #   profile: sandbox                         # a named profile from ~/.aws/config
+    #   regions: [us-east-1]                     # per-account override
+  # Tags that tie resources to people and circuits (first key present wins):
+  app_tag_keys: [Application, application, App, app, Service, service]
+  owner_tag_keys: [Owner, owner, Team, team]
+  circuit_tag_keys: [CircuitId, CircuitID, circuit_id, Circuit]   # on DX connections / customer gateways
+  provider_tag_keys: [Carrier, Provider]
+  site_tag_keys: [Site, site]
+  collect_instances: true
+  collect_enis: true
+
+correlation:
+  min_identifier_length: 4                       # shorter inventory aliases are ignored
+  min_name_length: 8                             # DX connection / VIF names used as identifiers
+  match_names: true
+  collision_lookahead_days: 60
+  open_outage_hours: 72                          # open-ended outages auto-close after this long without news
+  recent_days: 7                                 # finished notices stay "recent" and are re-correlated
+
+# --------------------------------------------------------------------------------------------
+# Notifications
+# --------------------------------------------------------------------------------------------
+notifications:
+  reminders: [24h, 1h]                           # before a window starts
+  notify_on_start: false
+  default_min_severity: AT_RISK                  # for subscriptions that do not set one
+  webhook_allow: ["hooks.slack.com", "*.webhook.office.com", "*.logic.azure.com"]  # empty = any public host
+  allow_private_targets: false                   # refuse webhooks to RFC1918 / link-local (e.g. 169.254.169.254)
+  timeout: 10
+  max_attempts: 5                                # exponential back-off from 1 minute
+  smtp:
+    host: smtp.gmail.com
+    port: 587
+    starttls: true
+    username: blastradius@example.com
+    password: ${SMTP_PASSWORD:-}
+    sender: blastradius@example.com
+
+# Subscriptions as code (read-only in the UI). People can also self-serve in the web UI, and
+# inventory applications with `notify:` get one automatically.
+subscriptions:
+  - name: NOC - everything
+    filter: {min_severity: AT_RISK, include_unmapped: true}
+    channels:
+      - {type: slack, url: "${SLACK_NOC_WEBHOOK:-https://hooks.slack.com/services/XXX}"}
+  - name: Payments on-call
+    filter: {applications: [payments-api], min_severity: DEGRADED}
+    events: [new, rescheduled, cancelled, reminder, impact_changed, collision]
+    channels:
+      - {type: email, to: [payments-oncall@example.com]}
+      - {type: webhook, url: "https://pager.example.com/hooks/blastradius", secret: "${PAGER_HOOK_SECRET:-}"}
+  - name: Everything to SNS
+    filter: {min_severity: AT_RISK}
+    channels:
+      # Subscribers can filter on the `applications`, `severity`, `provider` and `event` attributes.
+      - {type: sns, topic_arn: "arn:aws:sns:eu-west-2:111111111111:maintenance-notices"}

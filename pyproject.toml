@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blastradius"
+version = "0.1.0"
+description = "Turns carrier and AWS maintenance emails into a subscribable feed, correlated with the AWS resources and applications they affect"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "pyyaml>=6",
+  "python-dateutil>=2.8",
+  "boto3>=1.34",
+  "requests>=2.31",
+  "google-auth>=2.29",
+  "google-auth-oauthlib>=1.2",
+]
+
+[project.optional-dependencies]
+# Network to Code's parser library: ~40 provider-specific formats. Heavy (numpy, lxml, h3).
+ntc = ["circuit-maintenance-parser>=2.5"]
+dev = ["pytest>=8", "httpx>=0.27", "moto[ec2,sns,sqs,sts]>=5", "ruff>=0.6"]
+
+[project.scripts]
+blastradius = "blastradius.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+blastradius = ["web/templates/*.html", "web/static/*", "demo/emails/*.eml", "demo/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+  "ignore::DeprecationWarning:botocore.*",
+  "ignore:Using `httpx` with `starlette.testclient`",
+]

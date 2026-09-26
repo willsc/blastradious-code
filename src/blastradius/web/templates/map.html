@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Map{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block content %}
+<h1>Topology map</h1>
+<p class="muted small">On-prem sites → carrier circuits → AWS edge → DX gateways → transit / VPN gateways → VPCs, subnets and hosts.
+  {% if overlay.selected %}Showing one notice: everything it does not reach is dimmed.{% elif filters.overlay != 'none' %}Coloured by maintenance in progress{% if filters.days %} or starting within {{ '24 hours' if filters.days == 1 else filters.days ~ ' days' }}{% endif %}; ⚠ marks where the work happens.{% endif %}
+  Drag to pan, Ctrl+scroll or the buttons to zoom, click anything for details.</p>
+<div class="card">
+  <form class="filters" method="get" action="/map">
+    <label>Maintenance overlay<select name="notice" onchange="this.form.submit()">
+      <option value="">All live maintenance</option>
+      {% for n in live %}<option value="{{ n.id }}" {{ 'selected' if filters.notice == n.id }}>{{ n.start_at|dt }} · {{ n.provider }} · {{ n.title|truncate(48) }}</option>{% endfor %}
+    </select></label>
+    <label>Window<select name="days">
+      {% for d, text in [(0, 'in progress now'), (1, 'next 24 hours'), (7, 'next 7 days'), (30, 'next 30 days'), (90, 'next 90 days')] %}
+      <option value="{{ d }}" {{ 'selected' if filters.days == d }}>{{ text }}</option>{% endfor %}</select></label>
+    <label>Show<select name="overlay"><option value="live">with maintenance</option><option value="none" {{ 'selected' if filters.overlay == 'none' }}>topology only</option></select></label>
+    <label>Account<select name="account"><option value="">all</option>
+      {% for id, name in accounts %}<option value="{{ id }}" {{ 'selected' if filters.account == id }}>{{ name }}{% if name != id %} ({{ id }}){% endif %}</option>{% endfor %}</select></label>
+    <label>VPC<select name="vpc"><option value="">all</option>
+      {% for id, name in vpcs %}<option value="{{ id }}" {{ 'selected' if filters.vpc == id }}>{{ name }}</option>{% endfor %}</select></label>
+    <label>Application<select name="app"><option value="">all</option>
+      {% for a in apps %}<option {{ 'selected' if filters.app == a }}>{{ a }}</option>{% endfor %}</select></label>
+    <label>Hosts<select name="hosts"><option value="">shown</option><option value="0" {{ 'selected' if filters.hosts == '0' or auto_hidden }}>hidden</option></select></label>
+    {% if filters.focus %}<input type="hidden" name="focus" value="{{ filters.focus }}">{% endif %}
+    <button type="submit">Apply</button>
+    <a class="button secondary" href="/map">Reset</a>
+    <a class="small" href="/map.svg?{{ query }}" download="blastradius-map.svg">Download SVG</a>
+  </form>
+</div>
+{% if overlay.selected %}<div class="banner info">Impact of <a href="/notices/{{ filters.notice }}"><b>{{ overlay.title }}</b></a>.</div>{% endif %}
+{% if auto_hidden %}<div class="banner info">{{ estate.host_count }} hosts hidden to keep the map readable — filter by account, VPC or application, or choose <i>Hosts: shown</i>.</div>{% endif %}
+<div class="map-toolbar">
+  <div class="zoom"><button class="secondary" type="button" data-zoom="out" title="Zoom out">−</button><button class="secondary" type="button" data-zoom="reset" data-zoom-label>100%</button><button class="secondary" type="button" data-zoom="in" title="Zoom in">+</button><button class="secondary" type="button" data-zoom="fit">Fit</button></div>
+  <div class="legend">
+    <span><span class="dot sev-3"></span>Outage</span><span><span class="dot sev-2"></span>Degraded / redundancy lost</span><span><span class="dot sev-1"></span>At risk</span>
+    <span>⚠ maintenance here</span><span>┄ dashed box: DX connection with no circuit mapped · dashed link: VPN</span>
+  </div>
+  <div class="muted small">{{ counts.get('site', 0) }} sites · {{ counts.get('circuit', 0) }} circuits · {{ counts.get('dxcon', 0) }} DX connections · {{ counts.get('cgw', 0) }} VPN endpoints · {{ counts.get('vpc', 0) }} VPCs · {{ counts.get('subnet', 0) }} subnets · {{ estate.host_count }} hosts</div>
+</div>
+<div class="mapview" data-mapview>{{ svg|safe }}</div>
+{% endblock %}

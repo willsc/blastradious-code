@@ -1,0 +1,53 @@
+From: Zayo Maintenance <mr@zayo.com>
+To: noc@example.com
+Subject: Zayo Planned Maintenance - TTN-0003581234 - START {{+3d@01:00|%d-%b-%Y %H:%M}} GMT
+Date: {{-2d|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <ttn-0003581234.0@zayo.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="zayo-boundary-1"
+
+--zayo-boundary-1
+Content-Type: text/html; charset="utf-8"
+
+<html><body>
+<p>Dear Zayo Customer,</p>
+<p>Please be advised that Zayo will be performing planned maintenance on the circuit(s) listed below.</p>
+<table>
+<tr><td>Maintenance Ticket #</td><td>TTN-0003581234</td></tr>
+<tr><td>Maintenance Window</td><td>{{+3d@01:00|%Y-%m-%d %H:%M}} - {{+3d@05:00|%H:%M}} GMT</td></tr>
+<tr><td>Location of Maintenance</td><td>Slough, Berkshire, UK</td></tr>
+<tr><td>Reason for Maintenance</td><td>Fibre relocation required by local highway works</td></tr>
+<tr><td>Expected Impact</td><td>Service Affecting Activity: service(s) are expected to go down for the duration of the work.</td></tr>
+</table>
+<p><b>Circuit(s) Affected:</b></p>
+<table>
+<tr><th>Circuit Id</th><th>Expected Impact</th><th>A Location Address</th><th>Z Location Address</th></tr>
+<tr><td>OGYX/123456//ZYO</td><td>Hard Down - up to 4 hours</td><td>Equinix LD5, 8 Buckingham Avenue, Slough</td><td>Slough DC, Farnham Road</td></tr>
+</table>
+<p>Thank you,<br>Zayo Global Change Management</p>
+</body></html>
+--zayo-boundary-1
+Content-Type: text/calendar; charset="utf-8"; method=REQUEST
+Content-Disposition: attachment; filename="TTN-0003581234.ics"
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Zayo//Maintenance Notification//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+SUMMARY:Zayo Maintenance TTN-0003581234 - fibre relocation\, Slough
+DTSTART;VALUE=DATE-TIME:{{+3d@01:00|%Y%m%dT%H%M%SZ}}
+DTEND;VALUE=DATE-TIME:{{+3d@05:00|%Y%m%dT%H%M%SZ}}
+DTSTAMP;VALUE=DATE-TIME:{{-2d|%Y%m%dT%H%M%SZ}}
+UID:TTN-0003581234@zayo.com
+SEQUENCE:0
+ORGANIZER;CN=Zayo Maintenance:mailto:mr@zayo.com
+X-MAINTNOTE-PROVIDER:zayo.com
+X-MAINTNOTE-ACCOUNT:ACME-UK-0042
+X-MAINTNOTE-MAINTENANCE-ID:TTN-0003581234
+X-MAINTNOTE-OBJECT-ID:OGYX/123456//ZYO
+X-MAINTNOTE-IMPACT:OUTAGE
+X-MAINTNOTE-STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR
+--zayo-boundary-1--

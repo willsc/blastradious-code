@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Subscribe{% endblock %}
+{% block content %}
+<h1>Subscriptions</h1>
+<p class="muted">Pick what you care about — applications, providers, circuits, AWS resources or accounts — and how you want to hear:
+  Slack, Teams, email, a signed webhook, an SNS topic, or simply a calendar/Atom feed (every subscription has one).</p>
+{% if error %}<div class="banner warn"><strong>Could not save:</strong> {{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>New subscription</h2>
+  <form method="post" action="/subscriptions">
+    <div class="form-grid">
+      <label>Name<input name="name" required value="{{ (preset_app ~ ' maintenance') if preset_app else '' }}" placeholder="payments on-call"></label>
+      <label>Description<input name="description" placeholder="optional"></label>
+      <label>Minimum impact<select name="min_severity">
+        <option value="AT_RISK">At risk (everything)</option><option value="DEGRADED" selected>Degraded or worse</option><option value="OUTAGE">Outage only</option></select></label>
+      <label>Applications (none = all)<select name="applications" multiple>
+        {% for a in apps %}<option {{ 'selected' if a == preset_app }}>{{ a }}</option>{% endfor %}</select></label>
+      <label>Providers<input name="providers" placeholder="Zayo, Colt"></label>
+      <label>Circuits<input name="circuits" placeholder="OGYX/123456//ZYO"></label>
+      <label>AWS resources<input name="resources" placeholder="vpc-…, dxcon-…, i-…"></label>
+      <label>AWS accounts<input name="accounts" placeholder="id or name"></label>
+      <label>App owners<input name="owners" placeholder="team-payments"></label>
+    </div>
+    <h3>Events</h3>
+    <div class="checks">
+      {% for e in events %}<label><input type="checkbox" name="events" value="{{ e }}" {{ 'checked' if e in default_events }}> {{ e }}</label>{% endfor %}
+      <label><input type="checkbox" name="include_unmapped" value="1"> also notices we could not map</label>
+    </div>
+    <h3>Deliver to</h3>
+    <div class="form-grid">
+      <label>Channel<select name="channel_type">
+        <option value="">Feed only (calendar / Atom)</option><option value="slack">Slack incoming webhook</option>
+        <option value="teams">Microsoft Teams (Workflows webhook)</option><option value="email">Email</option>
+        <option value="webhook">Generic webhook (HMAC-signed JSON)</option><option value="sns">Amazon SNS topic</option></select></label>
+      <label>URL / addresses / topic ARN<input name="channel_target" placeholder="https://hooks.slack.com/services/… · a@x.com, b@x.com · arn:aws:sns:…"></label>
+      <label>Webhook secret (optional)<input name="channel_secret" placeholder="for X-BlastRadius-Signature"></label>
+    </div>
+    <p><button type="submit">Create subscription</button></p>
+  </form>
+</div>
+
+{% for s in subs %}
+<div class="card" id="sub-{{ s.id }}">
+  <h2>{{ s.name }} {% if s.managed %}<span class="badge" title="Defined in config/inventory — edit it there">managed · {{ s.managed.split(':')[0] }}</span>{% endif %}
+    {% if not s.enabled %}<span class="badge">disabled</span>{% endif %}</h2>
+  {% if s.description %}<p class="muted small">{{ s.description }}</p>{% endif %}
+  <dl class="kv small">
+    <dt>Filter</dt><dd>{% for k, v in s.filter.items() if v not in (none, '', [], false) %}<b>{{ k }}</b>={{ v|join(', ') if v is iterable and v is not string else v }}{{ ' · ' if not loop.last }}{% else %}everything{% endfor %}</dd>
+    <dt>Events</dt><dd>{{ s.events|join(', ') }}</dd>
+    <dt>Channels</dt><dd>{% for c in s.channels %}<span class="chip">{{ c.type }}{% if c.to %}: {{ c.to|join(', ') }}{% elif c.topic_arn %}: {{ c.topic_arn }}{% endif %}</span>{% else %}feed only{% endfor %}</dd>
+    <dt>Feeds</dt><dd class="feed-links">
+      <div>Calendar: <code>{{ cfg.base_url.rstrip('/') }}/feeds/{{ s.token }}.ics</code></div>
+      <div>Atom: <code>{{ cfg.base_url.rstrip('/') }}/feeds/{{ s.token }}.atom</code></div>
+      <div class="faint">The token is the credential — share it only with people who should see these notices.</div></dd>
+    <dt>Owner</dt><dd>{{ s.owner or '—' }} · created {{ s.created_at|rel }}</dd>
+  </dl>
+  {% if not s.managed and (user.admin or s.owner == user.name) %}
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <form class="inline" method="post" action="/subscriptions/{{ s.id }}/toggle"><button class="secondary">{{ 'Disable' if s.enabled else 'Enable' }}</button></form>
+    <form class="inline" method="post" action="/subscriptions/{{ s.id }}/delete" onsubmit="return confirm('Delete this subscription?')"><button class="danger">Delete</button></form>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

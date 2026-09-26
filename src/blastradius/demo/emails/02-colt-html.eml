@@ -1,0 +1,22 @@
+From: Colt Planned Works <PlannedWorks@colt.net>
+To: noc@example.com
+Subject: Colt Planned Works Notification - CRQ000012345678
+Date: {{-1d|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <crq000012345678@colt.net>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+
+<html><head><style>td{font-family:Arial}</style></head><body>
+<p>Dear Customer,</p>
+<p>Please be advised that Colt will carry out planned works which will affect the service(s) below.</p>
+<table border="1" cellpadding="4">
+<tr><td>Planned Works Reference</td><td>CRQ000012345678</td></tr>
+<tr><td>Start Date/Time (UTC)</td><td>{{+5d@00:00|%d/%m/%Y %H:%M}}</td></tr>
+<tr><td>End Date/Time (UTC)</td><td>{{+5d@04:00|%d/%m/%Y %H:%M}}</td></tr>
+<tr><td>Service ID(s)</td><td>LON/SLO/LE-884321</td></tr>
+<tr><td>Expected Impact</td><td>Loss of service for the duration of the window (up to 4 hours)</td></tr>
+<tr><td>Location</td><td>Telehouse North, London</td></tr>
+<tr><td>Description</td><td>Replacement of line cards on the Colt metro ring</td></tr>
+</table>
+<p>Kind regards,<br>Colt Change Management</p>
+</body></html>

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import notice_table with context %}
+{% block title %}Notices{% endblock %}
+{% block content %}
+<h1>Notices</h1>
+<div class="card">
+  <form class="filters" method="get">
+    <label>Phase<select name="phase"><option value="">any</option>
+      {% for p in PHASES %}<option value="{{ p }}" {{ 'selected' if filters.phase == p }}>{{ PHASE_LABELS[p] }}</option>{% endfor %}</select></label>
+    <label>Minimum impact<select name="min_severity"><option value="">any</option>
+      {% for s in ['AT_RISK', 'DEGRADED', 'OUTAGE'] %}<option value="{{ s }}" {{ 'selected' if filters.min_severity == s }}>{{ s }}</option>{% endfor %}</select></label>
+    <label>Application<select name="app"><option value="">any</option>
+      {% for a in apps %}<option {{ 'selected' if filters.app == a }}>{{ a }}</option>{% endfor %}</select></label>
+    <label>Provider<select name="provider"><option value="">any</option>
+      {% for p in providers %}<option {{ 'selected' if filters.provider == p }}>{{ p }}</option>{% endfor %}</select></label>
+    <label>Search<input name="q" value="{{ filters.q }}" placeholder="title, ref, circuit"></label>
+    <button type="submit">Filter</button>
+    <a class="button secondary" href="/notices">Reset</a>
+    <a class="small" href="/api/notices?{{ request.url.query }}">JSON</a>
+  </form>
+</div>
+<div class="card flush">{{ notice_table(items) }}</div>
+{% endblock %}

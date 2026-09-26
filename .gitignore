@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+var/
+config.yaml
+inventory.yaml
+!src/blastradius/demo/inventory.yaml
+.env

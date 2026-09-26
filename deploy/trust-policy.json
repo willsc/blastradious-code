@@ -1,0 +1,12 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowBlastRadiusCollector",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::COLLECTOR_ACCOUNT_ID:role/blastradius"},
+      "Action": "sts:AssumeRole",
+      "Condition": {"StringEquals": {"sts:ExternalId": "CHANGE_ME"}}
+    }
+  ]
+}

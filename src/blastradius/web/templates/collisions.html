@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sevpill with context %}
+{% block title %}Collisions{% endblock %}
+{% block content %}
+<h1>Maintenance collisions</h1>
+<p class="muted">Overlapping windows whose <em>combined</em> impact is worse than either notice alone — typically two carriers
+  working on both legs of a redundant path on the same night. Recomputed whenever a notice or the topology changes.</p>
+{% for c in collisions %}
+<div class="card" id="{{ c.id }}">
+  <h2>{{ sevpill(c.severity) }} {{ c.summary }}</h2>
+  <div class="meta"><span>overlap <b>{{ c.start|dt }}</b> → <b>{{ c.end|dt }}</b></span><span>first seen {{ c.first_seen|rel }}</span></div>
+  <h3>Notices</h3>
+  <ul>{% for n in c.notices %}<li><a href="/notices/{{ n.id }}">#{{ n.id }} {{ n.provider }} — {{ n.title }}</a> <span class="faint small">{{ n.start|dt }} → {{ n.end|dt }}</span></li>{% endfor %}</ul>
+  <h3>Escalations</h3>
+  <table class="data small"><thead><tr><th>Resource</th><th>Alone</th><th>Together</th><th>Why</th></tr></thead><tbody>
+  {% set workloads = c.escalations|selectattr('type', 'in', ['instance', 'eni'])|list %}
+  {% for e in c.escalations if e.type not in ('instance', 'eni') %}
+    <tr><td><span class="faint">{{ e.type|typelabel }}</span> <a href="/topology/node?key={{ e.key|urlencode }}" class="mono">{{ e.label }}</a></td>
+      <td>{{ sevpill(e['from']) if e['from'] else '—' }}</td><td>{{ sevpill(e.to) }}</td><td class="muted">{{ e.reasons[:1]|join('') }}</td></tr>
+  {% endfor %}
+  {% if workloads %}<tr><td colspan="4" class="muted">+ {{ workloads|length }} instances / network interfaces in those subnets</td></tr>{% endif %}
+  </tbody></table>
+</div>
+{% else %}
+<div class="card"><div class="empty">No collisions among live notices.</div></div>
+{% endfor %}
+{% endblock %}

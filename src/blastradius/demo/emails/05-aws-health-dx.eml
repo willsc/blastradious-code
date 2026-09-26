@@ -1,0 +1,26 @@
+From: Amazon Web Services <no-reply-aws@amazon.com>
+To: noc@example.com
+Subject: [Scheduled change] AWS Direct Connect scheduled maintenance [AWS Account: 111111111111]
+Date: {{-4d|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <aws-health-dx-1@amazon.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Hello,
+
+We will be performing scheduled maintenance on the AWS Direct Connect equipment that your connection(s) terminate on. During this maintenance your connection(s) will be unavailable. Please ensure your traffic can fail over to a redundant connection.
+
+Event type code: AWS_DIRECTCONNECT_MAINTENANCE_SCHEDULED
+Event type category: scheduledChange
+Region: eu-west-2
+Account: 111111111111
+Start time: {{+11d@06:00|%a, %d %b %Y %H:%M:%S GMT}}
+End time: {{+11d@10:00|%a, %d %b %Y %H:%M:%S GMT}}
+
+Affected resources:
+dxcon-fgct2b02
+
+Event ARN: arn:aws:health:eu-west-2::event/DIRECTCONNECT/AWS_DIRECTCONNECT_MAINTENANCE_SCHEDULED/AWS_DIRECTCONNECT_MAINTENANCE_SCHEDULED_a1b2c3d4e5f6
+
+Sincerely,
+Amazon Web Services

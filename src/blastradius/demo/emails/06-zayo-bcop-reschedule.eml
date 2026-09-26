@@ -1,0 +1,46 @@
+From: Zayo Maintenance <mr@zayo.com>
+To: noc@example.com
+Subject: Zayo Planned Maintenance - TTN-0003581234 - RESCHEDULED - NEW START {{+5d@02:00|%d-%b-%Y %H:%M}} GMT
+Date: {{-2h|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <ttn-0003581234.1@zayo.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="zayo-boundary-2"
+
+--zayo-boundary-2
+Content-Type: text/html; charset="utf-8"
+
+<html><body>
+<p>Dear Zayo Customer,</p>
+<p>The maintenance below has been <b>rescheduled</b>. Please note the new window.</p>
+<table>
+<tr><td>Maintenance Ticket #</td><td>TTN-0003581234</td></tr>
+<tr><td>Maintenance Window</td><td>{{+5d@02:00|%Y-%m-%d %H:%M}} - {{+5d@06:00|%H:%M}} GMT</td></tr>
+<tr><td>Expected Impact</td><td>Service Affecting Activity: service(s) are expected to go down for the duration of the work.</td></tr>
+</table>
+<p>Circuit(s) Affected: OGYX/123456//ZYO</p>
+</body></html>
+--zayo-boundary-2
+Content-Type: text/calendar; charset="utf-8"; method=REQUEST
+Content-Disposition: attachment; filename="TTN-0003581234.ics"
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Zayo//Maintenance Notification//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+SUMMARY:Zayo Maintenance TTN-0003581234 - fibre relocation\, Slough (rescheduled)
+DTSTART;VALUE=DATE-TIME:{{+5d@02:00|%Y%m%dT%H%M%SZ}}
+DTEND;VALUE=DATE-TIME:{{+5d@06:00|%Y%m%dT%H%M%SZ}}
+DTSTAMP;VALUE=DATE-TIME:{{-2h|%Y%m%dT%H%M%SZ}}
+UID:TTN-0003581234@zayo.com
+SEQUENCE:1
+ORGANIZER;CN=Zayo Maintenance:mailto:mr@zayo.com
+X-MAINTNOTE-PROVIDER:zayo.com
+X-MAINTNOTE-ACCOUNT:ACME-UK-0042
+X-MAINTNOTE-MAINTENANCE-ID:TTN-0003581234
+X-MAINTNOTE-OBJECT-ID:OGYX/123456//ZYO
+X-MAINTNOTE-IMPACT:OUTAGE
+X-MAINTNOTE-STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR
+--zayo-boundary-2--

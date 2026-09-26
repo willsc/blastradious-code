@@ -1,0 +1,20 @@
+From: Equinix Service Desk <servicedesk@equinix.com>
+To: noc@example.com
+Subject: Equinix Scheduled Maintenance - LD5 - UPS Infrastructure [5-219045678901]
+Date: {{-1d|%a, %d %b %Y %H:%M:%S +0000}}
+Message-ID: <5-219045678901@equinix.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Dear Equinix Customer,
+
+Equinix will be performing scheduled maintenance on the UPS systems serving your cabinets.
+
+IBX: LD5
+Location: Equinix LD5, 8 Buckingham Avenue, Slough
+Start: {{-1h|%Y-%m-%d %H:%M}} UTC
+End: {{+2h|%Y-%m-%d %H:%M}} UTC
+
+Impact: No impact to customer services is expected. Equipment will be on a single (B) power feed for the duration, so it is at risk.
+
+Equinix Global Service Desk

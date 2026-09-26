@@ -1,0 +1,79 @@
+# Demo inventory — the facts AWS cannot tell us. See inventory.example.yaml for the full reference.
+
+accounts:
+  "111111111111": network
+  "222222222222": prod
+  "333333333333": data
+
+sites:
+  - id: ld5
+    name: Equinix LD5
+    role: colo                     # colos are excluded when inferring backup paths
+    aliases: ["Equinix LD5", "LD5 Slough"]
+    dx_locations: [EqLD5]          # facility work at LD5 reaches every DX connection there
+  - id: thn
+    name: Telehouse North
+    role: colo
+    aliases: ["Telehouse North"]
+    dx_locations: [THN1]
+  - id: slough-dc
+    name: Slough data centre
+    aliases: ["Slough DC"]
+    prefixes: [10.100.0.0/16]
+  - id: london-hq
+    name: London HQ
+    aliases: ["London HQ", "1 Example Street"]
+    prefixes: [10.200.0.0/16]
+
+circuits:
+  - id: OGYX/123456//ZYO
+    provider: Zayo
+    description: 10G wave Equinix LD5 <-> Slough DC (DX leg A)
+    bandwidth: 10G
+    sites: [ld5, slough-dc]
+    # carries dxcon-fgzy1a01 — learned from the CircuitId tag on the DX connection
+  - id: C-884321
+    provider: Colt
+    aliases: ["LON/SLO/LE-884321"]
+    description: 10G wave Telehouse North <-> Slough DC (DX leg B)
+    bandwidth: 10G
+    sites: [thn, slough-dc]
+    carries: [dxcon-fgct2b02]
+  - id: LUMEN/441122
+    provider: Lumen
+    description: LAG member A, Equinix LD5 <-> Slough DC
+    sites: [ld5, slough-dc]
+  - id: LUMEN/441123
+    provider: Lumen
+    description: LAG member B, Equinix LD5 <-> Slough DC
+    sites: [ld5, slough-dc]
+  - id: BT-IL-778899
+    provider: BT
+    description: 1G internet leased line at London HQ (underlay for the Site-to-Site VPN)
+    bandwidth: 1G
+    sites: [london-hq]
+    carries: [cgw-01000000000000001]
+    ip_blocks: [203.0.113.8/29]
+
+applications:
+  - name: payments-api
+    description: Card payments API
+    owners: [payments-oncall@example.com]
+    tier: 1
+    selectors:
+      tags: {Application: payments-api}
+      resources: [eni-02000000000000e21, eni-02000000000000e22]   # its ALB
+  - name: ledger
+    description: General ledger service and its RDS Postgres
+    owners: [ledger-team@example.com]
+    tier: 1
+    selectors:
+      cidrs: [10.20.11.0/24, 10.20.12.0/24]
+  - name: data-warehouse
+    description: Nightly ETL from the Slough DC
+    owners: [data-eng@example.com]
+    tier: 2
+  - name: reporting
+    description: Finance reporting
+    owners: [finance-it@example.com]
+    tier: 3
