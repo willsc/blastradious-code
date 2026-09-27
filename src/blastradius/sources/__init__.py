@@ -1,1 +1,1 @@
-"""Mail sources: Gmail API and a drop directory."""
+"""Mail sources: Gmail API, IMAP and a drop directory."""

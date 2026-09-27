@@ -136,6 +136,30 @@ class DirectoryConfig:
 
 
 @dataclass
+class ImapConfig:
+    """IMAP with a username and password. For Gmail, use an app password (needs 2-Step Verification)."""
+
+    enabled: bool = False
+    host: str = "imap.gmail.com"
+    port: int = 993
+    ssl: bool = True  # implicit TLS; with ssl: false, `starttls` upgrades a plain connection
+    starttls: bool = True
+    username: str | None = None
+    password: str | None = None
+    folders: list[str] = field(default_factory=lambda: ["INBOX"])
+    use_gmail_queries: bool = True  # on Gmail, run each message type's gmail_query server-side (X-GM-RAW)
+    search: str | None = None  # extra IMAP SEARCH criteria for other servers, e.g. 'FROM "zayo.com"'
+    poll_interval: int = 60
+    backfill_days: int = 14
+    overlap_hours: int = 48
+    max_messages_per_poll: int = 200
+    processed_folder: str | None = None  # copy processed mail here (a label on Gmail)
+    timeout: int = 30
+
+    _coerce_poll_interval = staticmethod(lambda v, w: parse_duration(v))
+
+
+@dataclass
 class AwsAccount:
     name: str = "default"
     role_arn: str | None = None
@@ -241,6 +265,7 @@ class Config:
     web: WebConfig = field(default_factory=WebConfig)
     gmail: GmailConfig = field(default_factory=GmailConfig)
     directory: DirectoryConfig = field(default_factory=DirectoryConfig)
+    imap: ImapConfig = field(default_factory=ImapConfig)
     aws: AwsConfig = field(default_factory=AwsConfig)
     message_types: list[MessageType] = field(default_factory=list)
     providers: list[ProviderHint] = field(default_factory=list)
@@ -252,6 +277,7 @@ class Config:
     _coerce_web = staticmethod(lambda v, w: _build(WebConfig, v, w))
     _coerce_gmail = staticmethod(lambda v, w: _build(GmailConfig, v, w))
     _coerce_directory = staticmethod(lambda v, w: _build(DirectoryConfig, v, w))
+    _coerce_imap = staticmethod(lambda v, w: _build(ImapConfig, v, w))
     _coerce_aws = staticmethod(lambda v, w: _build(AwsConfig, v, w))
     _coerce_notifications = staticmethod(lambda v, w: _build(NotificationsConfig, v, w))
     _coerce_correlation = staticmethod(lambda v, w: _build(CorrelationConfig, v, w))
@@ -374,5 +400,10 @@ def validate(cfg: Config) -> None:
         raise ConfigError("web.auth.mode must be 'none' or 'header'")
     if cfg.gmail.enabled and cfg.gmail.auth not in {"oauth", "service_account"}:
         raise ConfigError("gmail.auth must be 'oauth' or 'service_account'")
+    if cfg.imap.enabled:
+        if not cfg.imap.username or not cfg.imap.password:
+            raise ConfigError("imap.username and imap.password are required when imap is enabled")
+        if not cfg.imap.folders:
+            raise ConfigError("imap.folders must list at least one folder")
     if cfg.gmail.label_processed and cfg.gmail.auth == "oauth":
         log.info("gmail.label_processed set: the OAuth token must include the gmail.modify scope")

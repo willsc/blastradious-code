@@ -25,6 +25,7 @@ services:
       BLASTRADIUS_SECRET_KEY: ${BLASTRADIUS_SECRET_KEY:?set a random secret}
       SLACK_NOC_WEBHOOK: ${SLACK_NOC_WEBHOOK:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
     expose: ["8470"]
 
   oauth2-proxy:

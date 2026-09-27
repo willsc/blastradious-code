@@ -12,6 +12,7 @@ from typing import Callable
 from .context import Context
 from .notify import subscriptions
 from .sources.gmail import GmailSource
+from .sources.imap import ImapSource
 from .sources.maildir import DirectorySource
 from .topology.inventory import load_inventory
 from .util import human_duration, iso, parse_iso, utcnow
@@ -28,6 +29,7 @@ class Worker:
         self.cfg = ctx.cfg
         self.gmail = GmailSource(ctx.cfg, ctx.db) if ctx.cfg.gmail.enabled else None
         self.directory = DirectorySource(ctx.cfg) if ctx.cfg.directory.enabled else None
+        self.imap = ImapSource(ctx.cfg, ctx.db) if ctx.cfg.imap.enabled else None
 
     # -- scheduling -----------------------------------------------------------
 
@@ -41,16 +43,19 @@ class Worker:
             self.ctx.db.kv_set(f"worker.{name}.error", {"at": iso(utcnow()), "error": str(exc)[:500]})
 
     def run(self, stop: threading.Event) -> None:
-        log.info("worker started (gmail=%s, directory=%s, aws=%s)", bool(self.gmail), bool(self.directory),
-                 self.cfg.aws.enabled)
+        log.info("worker started (gmail=%s, imap=%s, directory=%s, aws=%s)", bool(self.gmail), bool(self.imap),
+                 bool(self.directory), self.cfg.aws.enabled)
         self._safe("startup", self.startup)
-        due = {"gmail": 0.0, "directory": 0.0, "topology": self._first_topology_due(), "tick": 0.0,
+        due = {"gmail": 0.0, "imap": 0.0, "directory": 0.0, "topology": self._first_topology_due(), "tick": 0.0,
                "collisions": 0.0}
         while not stop.is_set():
             now = time.monotonic()
             if self.gmail and now >= due["gmail"]:
                 self._safe("gmail", lambda: self.gmail.poll(self.ctx.pipeline))
                 due["gmail"] = time.monotonic() + self.cfg.gmail.poll_interval
+            if self.imap and now >= due["imap"]:
+                self._safe("imap", lambda: self.imap.poll(self.ctx.pipeline))
+                due["imap"] = time.monotonic() + self.cfg.imap.poll_interval
             if self.directory and now >= due["directory"]:
                 self._safe("directory", lambda: self.directory.poll(self.ctx.pipeline))
                 due["directory"] = time.monotonic() + self.cfg.directory.poll_interval

@@ -137,6 +137,42 @@ def cmd_gmail_test(args) -> int:
     return 0
 
 
+def cmd_imap_test(args) -> int:
+    from .classify import classify
+    from .db import Database
+    from .mailparse import parse_mail
+    from .sources.imap import ImapError, ImapSource
+
+    cfg = load_config(args.config)
+    source = ImapSource(cfg, Database(":memory:"))
+    try:
+        conn = source.login()
+    except (ImapError, OSError) as exc:
+        print(_c("31", str(exc)), file=sys.stderr)
+        return 1
+    try:
+        gmail = source.is_gmail(conn)
+        print(_c("1", f"Logged in to {cfg.imap.host} as {cfg.imap.username}"
+                      f"{' (Gmail extensions: gmail_query used server-side)' if gmail else ''}"))
+        for folder in cfg.imap.folders:
+            source.select(conn, folder)
+            for type_name, criteria in source.searches(gmail, None):
+                if args.type and type_name not in (None, args.type):
+                    continue
+                uids = source.search(conn, criteria)
+                print(_c("1", f"{folder} · {type_name or 'all types'}: {' '.join(criteria)}  ->  {len(uids)} message(s)"))
+                for uid in uids[-args.limit:]:
+                    raw, _received = source.fetch_raw(conn, uid)
+                    mail = parse_mail(raw)
+                    matched = classify(mail, cfg, type_name)
+                    verdict = matched.name if matched else _c("33", "ignored (no type matched)")
+                    when = f"{mail.date:%Y-%m-%d %H:%M}" if mail.date else "?" * 16
+                    print(f"  {uid:>7}  {when}  {mail.sender:35.35}  {mail.subject[:70]:70}  -> {verdict}")
+    finally:
+        conn.logout()
+    return 0
+
+
 def cmd_discover(args) -> int:
     ctx = _context(args)
     topo = ctx.store.refresh(collect_aws=not args.no_aws)
@@ -249,6 +285,7 @@ def cmd_check(args) -> int:
     print(f"  database: {cfg.path(cfg.database)}")
     print(f"  message types: {', '.join(t.name for t in cfg.message_types)}")
     print(f"  gmail: {'enabled (' + cfg.gmail.auth + ')' if cfg.gmail.enabled else 'disabled'}"
+          f"   imap: {'enabled (' + str(cfg.imap.username) + '@' + cfg.imap.host + ')' if cfg.imap.enabled else 'disabled'}"
           f"   directory: {'enabled' if cfg.directory.enabled else 'disabled'}"
           f"   aws: {'enabled ' + str(len(cfg.aws.accounts)) + ' account(s) x ' + ','.join(cfg.aws.regions) if cfg.aws.enabled else 'disabled'}")
     inv = load_inventory(cfg.path(cfg.inventory))
@@ -339,6 +376,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--type")
     s.add_argument("--limit", type=int, default=10)
 
+    s = sub.add_parser("imap-test", help="read-only: log in over IMAP and show what each search finds")
+    s.add_argument("--type")
+    s.add_argument("--limit", type=int, default=10)
+
     s = sub.add_parser("discover", help="build a topology snapshot now (AWS + inventory)")
     s.add_argument("--no-aws", action="store_true", help="reuse the last AWS collection; apply inventory only")
     s.add_argument("--no-recorrelate", action="store_true")
@@ -364,6 +405,7 @@ COMMANDS = {
     "run": lambda a: cmd_run(a, with_worker=True),
     "serve": lambda a: cmd_run(a, with_worker=False),
     "worker": cmd_worker, "demo": cmd_demo, "gmail-auth": cmd_gmail_auth, "gmail-test": cmd_gmail_test,
+    "imap-test": cmd_imap_test,
     "discover": cmd_discover, "ingest": cmd_ingest, "parse": cmd_parse, "whatif": cmd_whatif,
     "notices": cmd_notices, "recorrelate": cmd_recorrelate, "rebuild": cmd_rebuild, "check": cmd_check,
 }

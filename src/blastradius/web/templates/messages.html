@@ -6,6 +6,7 @@
   {% for s, c in stats.items() %}<a href="?status={{ s }}" class="{{ 'on' if status == s }}"><b>{{ c }}</b> {{ s }}</a>{% endfor %}
   {% if status %}<a href="/messages">all</a>{% endif %}
   {% if gmail_stats %}<span>Gmail: last poll {{ gmail_stats.at|rel }} ({{ gmail_stats.listed }} listed, {{ gmail_stats.new }} new)</span>{% endif %}
+  {% if imap_stats %}<span>IMAP: last poll {{ imap_stats.at|rel }} ({{ imap_stats.listed }} listed, {{ imap_stats.new }} new)</span>{% endif %}
 </div>
 <div class="grid cols-3-1">
   <div class="card flush">

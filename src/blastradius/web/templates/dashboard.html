@@ -60,6 +60,7 @@
       <dl class="kv">
         <dt>Worker</dt><dd>{% if heartbeat %}heartbeat {{ heartbeat|rel }}{% else %}<span class="muted">not running (web only)</span>{% endif %}</dd>
         <dt>Gmail</dt><dd>{% if gmail_stats %}last poll {{ gmail_stats.at|rel }} · {{ gmail_stats.new }} new{% else %}<span class="muted">{{ 'enabled, not polled yet' if cfg.gmail.enabled else 'disabled' }}</span>{% endif %}</dd>
+        {% if cfg.imap.enabled or imap_stats %}<dt>IMAP</dt><dd>{% if imap_stats %}last poll {{ imap_stats.at|rel }} · {{ imap_stats.new }} new{% else %}<span class="muted">enabled, not polled yet</span>{% endif %}</dd>{% endif %}
         <dt>AWS</dt><dd>{{ 'collected ' ~ (topo_summary.aws_collected_at|rel) if topo_summary.aws_collected_at else 'not collected' }}{% if not cfg.aws.enabled %} <span class="faint">(collection disabled)</span>{% endif %}</dd>
       </dl>
       {% for e in worker_errors %}

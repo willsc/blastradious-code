@@ -187,7 +187,7 @@ def create_app(ctx: Context, worker=None) -> FastAPI:
             "outage": sum(1 for n in live if n["mapped"] and n["severity"] >= 3 and n["status"] != "CANCELLED"),
         }
         worker_errors = []
-        for task in ("startup", "gmail", "directory", "topology", "tick", "collisions"):
+        for task in ("startup", "gmail", "imap", "directory", "topology", "tick", "collisions"):
             error = db.kv_get(f"worker.{task}.error")
             if error and error.get("at", "") > (db.kv_get(f"worker.{task}.ok") or ""):
                 worker_errors.append({"task": task, **error})
@@ -195,7 +195,7 @@ def create_app(ctx: Context, worker=None) -> FastAPI:
                     worker_errors=worker_errors,
                     timeline_svg=svg, app_risk=sorted(app_risk.values(), key=lambda a: (-a["severity"], a["name"])),
                     recent_events=recent_events, heartbeat=db.kv_get("worker.heartbeat"),
-                    gmail_stats=db.kv_get("gmail.last_stats"))
+                    gmail_stats=db.kv_get("gmail.last_stats"), imap_stats=db.kv_get("imap.last_stats"))
 
     @app.get("/notices", response_class=HTMLResponse)
     def notice_list(request: Request, phase: str = "", min_severity: str = "", app_name: str = Query("", alias="app"),
@@ -482,7 +482,8 @@ def create_app(ctx: Context, worker=None) -> FastAPI:
         sql += " GROUP BY m.id ORDER BY m.received_at DESC, m.id DESC LIMIT 300"
         stats = {r["status"]: r["n"] for r in db.query("SELECT status, count(*) AS n FROM messages GROUP BY status")}
         return page(request, "messages.html", user, rows=db.query(sql, params), status=status, stats=stats,
-                    types=cfg.message_types, gmail_stats=db.kv_get("gmail.last_stats"))
+                    types=cfg.message_types, gmail_stats=db.kv_get("gmail.last_stats"),
+                    imap_stats=db.kv_get("imap.last_stats"))
 
     @app.post("/messages/upload")
     async def messages_upload(file: UploadFile = File(...), user: User = Depends(admin_dep)):
@@ -655,6 +656,7 @@ def create_app(ctx: Context, worker=None) -> FastAPI:
             "topology_snapshot": summary.get("id"),
             "topology_age": (now - created).total_seconds() if created else None,
             "gmail": db.kv_get("gmail.last_stats"),
+            "imap": db.kv_get("imap.last_stats"),
         }
         if worker is not None and (heartbeat is None or (now - heartbeat).total_seconds() > 300):
             body["status"] = "degraded"
@@ -688,10 +690,11 @@ def create_app(ctx: Context, worker=None) -> FastAPI:
         if heartbeat:
             lines += ["# TYPE blastradius_worker_heartbeat_age_seconds gauge",
                       f"blastradius_worker_heartbeat_age_seconds {(now - heartbeat).total_seconds():.0f}"]
-        last_poll = parse_iso(db.kv_get("gmail.last_poll"))
-        if last_poll:
-            lines += ["# TYPE blastradius_gmail_last_poll_age_seconds gauge",
-                      f"blastradius_gmail_last_poll_age_seconds {(now - last_poll).total_seconds():.0f}"]
+        for name in ("gmail", "imap"):
+            last_poll = parse_iso(db.kv_get(f"{name}.last_poll"))
+            if last_poll:
+                lines += [f"# TYPE blastradius_{name}_last_poll_age_seconds gauge",
+                          f"blastradius_{name}_last_poll_age_seconds {(now - last_poll).total_seconds():.0f}"]
         return "\n".join(lines) + "\n"
 
     return app

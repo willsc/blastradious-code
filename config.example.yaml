@@ -21,7 +21,7 @@ web:
 # --------------------------------------------------------------------------------------------
 # Mail sources
 # --------------------------------------------------------------------------------------------
-gmail:
+gmail:                                           # Gmail API (OAuth); or use the `imap` section below
   enabled: true
   # oauth: personal Gmail or Workspace. Create an OAuth client of type "Desktop app" in Google
   #   Cloud, enable the Gmail API, then run `blastradius -c config.yaml gmail-auth`.
@@ -38,6 +38,25 @@ gmail:
   overlap_hours: 48                              # each poll re-lists this much history (deduplicated)
   max_messages_per_poll: 200
   label_processed: blastradius/processed         # optional: label processed mail (needs gmail.modify scope)
+
+imap:                                            # username + password instead of the Gmail API
+  enabled: false
+  # Gmail: turn on 2-Step Verification, create an app password at
+  #   https://myaccount.google.com/apppasswords and use it below (not the account password).
+  #   IMAP access is always on for personal Gmail; Workspace admins can disable it.
+  host: imap.gmail.com
+  port: 993
+  ssl: true                                      # implicit TLS; with ssl: false, starttls: true upgrades port 143
+  username: noc@example.com                      # example
+  password: ${IMAP_PASSWORD:-}
+  folders: [INBOX]                               # Gmail: "[Gmail]/All Mail" also finds mail filtered past the inbox
+  use_gmail_queries: true                        # on Gmail, message types' gmail_query runs server-side
+  # search: 'FROM "zayo.com"'                    # other servers: extra IMAP SEARCH criteria (else all recent mail)
+  poll_interval: 60s
+  backfill_days: 14
+  overlap_hours: 48
+  max_messages_per_poll: 200
+  # processed_folder: blastradius/processed      # copy processed mail here (a label on Gmail)
 
 directory:                                       # drop *.eml files here (procmail, SES->S3 sync, replays)
   enabled: false

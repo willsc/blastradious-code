@@ -6,6 +6,7 @@ Example: *"Zayo TTN-0003581234 takes down `OGYX/123456//ZYO` → `ld5-zayo-10g` 
 
 ```
 Gmail API ─┐                ┌─ BCOP iCalendar ─┐                    ┌─ web UI (dashboard, timeline, graphs)
+IMAP      ─┤
 drop dir  ─┼─> classify ───>├─ AWS Health      ├─> notice (merged   ├─ JSON API
 POST /api ─┘  (message       ├─ 40 carriers*   │   reminders,       ├─ per-subscription iCal + Atom feeds
                types)        └─ free text/HTML ┘   reschedules,     ├─ Slack · Teams · email · signed webhook · SNS
@@ -116,6 +117,7 @@ blastradius -c config.yaml run          # web UI + worker
 | top level | `database` (SQLite path), `base_url` (links in notifications and feeds), `display_timezone`, `secret_key`, `inventory` (path to inventory.yaml) |
 | `web` | `host` and `port`. `auth.mode` is `none` or `header`, with `auth.header`, `auth.admins` and `auth.api_tokens` (sent as `Authorization: Bearer <token>`) |
 | `gmail` | `enabled`, `auth` (`oauth` or `service_account`), credential and token files, `poll_interval`, `backfill_days`, `overlap_hours`, `max_messages_per_poll`, `label_processed` |
+| `imap` | mail over IMAP with a username and password (for Gmail, an app password): `enabled`, `host`, `port`, `ssl`/`starttls`, `username`, `password`, `folders`, `use_gmail_queries`, `search`, `poll_interval`, `backfill_days`, `overlap_hours`, `max_messages_per_poll`, `processed_folder` |
 | `directory` | a drop folder of `*.eml` files (`path`, `poll_interval`) for procmail, SES→S3 syncs or replays |
 | `message_types` | an ordered list where the first match wins. Each type has a `gmail_query` (what gets fetched) and `match` rules (`senders`, `subject`, `not_subject`, `body`, `has_calendar`) that recognise it. It also sets `kind` (`maintenance`, `outage` or `advisory`), `parsers` (`bcop`, `ntc`, `aws_health`, `generic`) and `default_impact` |
 | `providers` | per-carrier hints for the free-text parser: `senders`, `dayfirst`, default `timezone`, `circuit_patterns`, `maintenance_id_patterns` |
@@ -134,6 +136,7 @@ blastradius -c config.yaml run          # web UI + worker
 | `BLASTRADIUS_API_TOKEN` | the `automation` API token |
 | `BLASTRADIUS_EXTERNAL_ID` | the ExternalId for the AWS role assumption |
 | `SMTP_PASSWORD` | the SMTP password for email notifications |
+| `IMAP_PASSWORD` | the IMAP password (for Gmail, the app password) |
 | `SLACK_NOC_WEBHOOK`, `PAGER_HOOK_SECRET` | the example subscriptions' Slack URL and webhook signing secret |
 
 Where to set them:
@@ -184,6 +187,25 @@ Or use Docker: `docker-compose.yml` runs blastradius behind **oauth2-proxy** (Go
 
 ### 2. Gmail
 
+There are two ways to read the mailbox. Enable one of them.
+
+**IMAP with an app password** is the simplest. It needs no Google Cloud project:
+1. On the Google account, turn on 2-Step Verification. Then create an app password at https://myaccount.google.com/apppasswords. Google won't accept the normal account password over IMAP.
+2. Configure it:
+   ```yaml
+   gmail: {enabled: false}
+   imap:
+     enabled: true
+     username: noc@example.com
+     password: ${IMAP_PASSWORD}      # the 16-letter app password; spaces are ignored
+     folders: [INBOX]                # or "[Gmail]/All Mail" if a filter skips the inbox
+   ```
+3. Put `IMAP_PASSWORD=...` in `/etc/blastradius/env` (or `.env` for Docker). Then check it read-only with `blastradius -c config.yaml imap-test`.
+
+On Gmail, each message type's `gmail_query` still runs on the server (through Gmail's IMAP extensions), and `processed_folder` works as a label. Mail is never marked as read. Other IMAP servers work too: set `host`, `port` and optionally `search` (IMAP SEARCH criteria such as `FROM "zayo.com"`). Without `search`, all recent mail is fetched and the message types decide what counts as a notice. A Workspace admin can turn off IMAP or app passwords; in that case use the API below.
+
+**Gmail API:**
+
 - **OAuth (Gmail or Workspace):**
   1. In Google Cloud, enable the Gmail API and create an OAuth client of type *Desktop app*. Set `gmail.client_secrets`.
   2. Run `blastradius -c config.yaml gmail-auth`. On a headless box, forward the callback port first: `ssh -L 8765:localhost:8765 host`.
@@ -221,13 +243,14 @@ Check a real mail before relying on it: `blastradius -c config.yaml parse notice
 | `run` / `serve` / `worker` | web + daemon in one process / web only / daemon only (they can share one database) |
 | `demo [--no-serve]` | seed a disposable demo database |
 | `gmail-auth`, `gmail-test` | OAuth consent; read-only preview of what each message type's query finds |
+| `imap-test` | read-only IMAP login and preview of what each search finds |
 | `discover [--no-aws]` | build a topology snapshot now (AWS + inventory, or inventory only) |
 | `parse FILE` | dry run on one mail |
 | `ingest FILE…` | process mail files |
 | `whatif TARGET…` | blast radius of a hypothetical failure (circuit ID, AWS ID, IP or name) |
 | `notices`, `recorrelate`, `rebuild`, `check` | list notices, re-run correlation, replay all stored mail after parser/config changes, validate config |
 
-- `GET /healthz` returns 503 if the worker's heartbeat is stale. `GET /metrics` exposes Prometheus gauges: notices by phase and severity, messages, deliveries, active collisions, topology size and age, Gmail poll age. Worker task failures (Gmail auth, AWS access) also show on the dashboard.
+- `GET /healthz` returns 503 if the worker's heartbeat is stale. `GET /metrics` exposes Prometheus gauges: notices by phase and severity, messages, deliveries, active collisions, topology size and age, Gmail and IMAP poll age. Worker task failures (Gmail or IMAP login, AWS access) also show on the dashboard.
 - Storage is SQLite in WAL mode. Raw mails are kept compressed so they can be reprocessed. The last 20 topology snapshots are kept, and the latest AWS collection is reused when only the inventory changes. Back up with `sqlite3 blastradius.db ".backup backup.db"`.
 - API docs are at `/api/docs`.
 
@@ -243,6 +266,7 @@ Module map:
 
 | Module | Role |
 |---|---|
+| `sources/` | mail sources: `gmail` (API), `imap`, `maildir` (drop directory) |
 | `mailparse` | MIME, HTML to text, forwarded mail |
 | `parsing/` | `timewin`, `ical`, `bcop`, `aws_health`, `generic`, `ntc` |
 | `topology/` | `aws` collector and normaliser, `inventory`, `build`, `index` (identifier matching), `store` (snapshots) |
