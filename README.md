@@ -82,6 +82,92 @@ Severities are **Outage** (no path left), **Degraded** (redundancy lost or quali
 - The engine models reachability, not capacity. It doesn't consider security groups or NACLs (a link maintenance doesn't change them). TGW peering and Cloud WAN attachments are leaves.
 - Correlation is only as good as the inventory. Unknown circuit IDs are shown on the notice so the gap can be fixed. Tagging DX connections and customer gateways with `CircuitId` is the lowest-effort way to close it.
 
+## Configuration
+
+blastradius reads two YAML files:
+
+| File | Holds | Template |
+|---|---|---|
+| `config.yaml` | how the app runs: database, web and auth, mail sources, message types, AWS accounts, notifications, subscriptions | `config.example.yaml` |
+| `inventory.yaml` | facts AWS can't tell it: circuits, sites, applications, account names | `inventory.example.yaml` |
+
+```bash
+cp config.example.yaml config.yaml
+cp inventory.example.yaml inventory.yaml
+$EDITOR config.yaml inventory.yaml
+blastradius -c config.yaml check        # validate both files before starting
+blastradius -c config.yaml run          # web UI + worker
+```
+
+**How the config is loaded**
+
+- Pass the config with `-c/--config`. With no config file, built-in defaults apply. Those defaults are for the demo only: Gmail and AWS are off, auth is `none`, and the database is `./blastradius.db`.
+- Every key is optional. Each section falls back to the values shown in `config.example.yaml`. If you leave out `message_types`, the built-in AWS Health, carrier-maintenance and carrier-outage types are used.
+- Relative paths (`database`, `inventory`, `gmail.client_secrets`, `gmail.token_file`, `directory.path`, …) are resolved against the directory that contains the config file, not the current working directory.
+- `${VAR}` and `${VAR:-default}` are replaced from the environment. If a plain `${VAR}` is unset, startup fails. Use this for every secret so the YAML stays safe to commit.
+- Durations can be written as a number of seconds or with a unit: `90`, `30s`, `15m`, `6h`, `2d`, `1w` (`poll_interval`, `refresh_interval`, `reminders`).
+- An unknown key produces a `config …: unknown key 'x' ignored` warning, so typos show up in the log. Bad regexes, unknown parsers, a bad `kind` or `auth.mode`, and duplicate message-type names stop startup with an error.
+- Config changes take effect on restart. The inventory file is watched, and edits apply within about a minute with no AWS calls. To reprocess stored mail after changing message types, providers or parsers, run `blastradius -c config.yaml rebuild`.
+
+**Sections at a glance** (`config.example.yaml` documents each key inline)
+
+| Section | What it controls |
+|---|---|
+| top level | `database` (SQLite path), `base_url` (links in notifications and feeds), `display_timezone`, `secret_key`, `inventory` (path to inventory.yaml) |
+| `web` | `host` and `port`. `auth.mode` is `none` or `header`, with `auth.header`, `auth.admins` and `auth.api_tokens` (sent as `Authorization: Bearer <token>`) |
+| `gmail` | `enabled`, `auth` (`oauth` or `service_account`), credential and token files, `poll_interval`, `backfill_days`, `overlap_hours`, `max_messages_per_poll`, `label_processed` |
+| `directory` | a drop folder of `*.eml` files (`path`, `poll_interval`) for procmail, SES→S3 syncs or replays |
+| `message_types` | an ordered list where the first match wins. Each type has a `gmail_query` (what gets fetched) and `match` rules (`senders`, `subject`, `not_subject`, `body`, `has_calendar`) that recognise it. It also sets `kind` (`maintenance`, `outage` or `advisory`), `parsers` (`bcop`, `ntc`, `aws_health`, `generic`) and `default_impact` |
+| `providers` | per-carrier hints for the free-text parser: `senders`, `dayfirst`, default `timezone`, `circuit_patterns`, `maintenance_id_patterns` |
+| `aws` | `enabled`, `regions`, `refresh_interval`, `accounts` (each with `role_arn` + `external_id`, a named `profile`, or ambient credentials, plus optional per-account `regions`), the tag keys used for applications, owners, circuits, providers and sites, and `collect_instances` / `collect_enis` |
+| `correlation` | identifier matching thresholds (`min_identifier_length`, `min_name_length`, `match_names`), `collision_lookahead_days`, `open_outage_hours`, `recent_days` |
+| `notifications` | `reminders`, `notify_on_start`, `default_min_severity`, webhook safety (`webhook_allow`, `allow_private_targets`), `timeout`, `max_attempts`, `smtp` |
+| `subscriptions` | subscriptions as code: `name`, `filter`, `events` and `channels` (`slack`, `teams`, `email`, `webhook`, `sns`). They show as read-only in the UI |
+
+**Secrets and environment variables**
+
+`config.example.yaml` reads these variables. You can rename them or add your own.
+
+| Variable | Used for |
+|---|---|
+| `BLASTRADIUS_SECRET_KEY` | signs webhooks and derives the secret feed-URL tokens. If it's empty, a key is generated and stored in the database. Set it explicitly so feed URLs survive a database rebuild |
+| `BLASTRADIUS_API_TOKEN` | the `automation` API token |
+| `BLASTRADIUS_EXTERNAL_ID` | the ExternalId for the AWS role assumption |
+| `SMTP_PASSWORD` | the SMTP password for email notifications |
+| `SLACK_NOC_WEBHOOK`, `PAGER_HOOK_SECRET` | the example subscriptions' Slack URL and webhook signing secret |
+
+Where to set them:
+
+- **systemd:** put `KEY=value` lines in `/etc/blastradius/env` (read through `EnvironmentFile=`) with mode 0600.
+- **Docker Compose:** use a `.env` file next to `docker-compose.yml`. It also needs `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_COOKIE_SECRET`, `OAUTH_REDIRECT_URL` and `ALLOWED_EMAIL_DOMAIN` for oauth2-proxy. Inside the container, set `database: /data/blastradius.db` and `gmail.token_file: /data/gmail-token.json` so state lands on the volume.
+- **AWS credentials** come from the standard boto3 chain: an instance or task role, environment variables, or `~/.aws` profiles. The IAM roles listed under `aws.accounts` are then assumed from those credentials.
+
+**A minimal production config**
+
+```yaml
+database: /var/lib/blastradius/blastradius.db
+base_url: https://blastradius.example.com
+display_timezone: Europe/London
+secret_key: ${BLASTRADIUS_SECRET_KEY}
+inventory: inventory.yaml
+
+web:
+  auth: {mode: header, header: X-Forwarded-Email, admins: [noc-lead@example.com]}
+
+gmail:
+  enabled: true
+  client_secrets: /etc/blastradius/gmail-client.json
+  token_file: /var/lib/blastradius/gmail-token.json
+
+aws:
+  enabled: true
+  regions: [eu-west-2]
+  accounts:
+    - {name: network, role_arn: "arn:aws:iam::111111111111:role/BlastRadiusReadOnly", external_id: "${BLASTRADIUS_EXTERNAL_ID}"}
+```
+
+The steps below go through each part in order.
+
 ## Production setup
 
 ### 1. Install
