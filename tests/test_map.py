@@ -1,11 +1,12 @@
 """Estate topology map: structure, links, overlays, filters and layout sanity."""
 
+import datetime as dt
 import xml.etree.ElementTree as ET
 
 import pytest
 from fastapi.testclient import TestClient
 
-from blastradius.util import OUTAGE
+from blastradius.util import OUTAGE, utcnow
 from blastradius.web import mapsvg
 from blastradius.web.app import create_app
 
@@ -125,7 +126,9 @@ def test_map_pages(seeded):
 def test_live_window(seeded, days, expect_bt):
     client = TestClient(create_app(seeded))
     text = client.get(f"/map?days={days}").text
-    assert ("BT · Sat" in text) == expect_bt
+    # the demo BT window is 7 days after the seed date, so its label's weekday moves with the calendar
+    weekday = (utcnow() + dt.timedelta(days=7)).strftime("%a")
+    assert (f"BT · {weekday}" in text) == expect_bt
 
 
 def test_vpc_link_coloured_only_by_what_that_vpc_routes(seeded):
